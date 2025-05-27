@@ -1,0 +1,134 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model UserProfile {
+  id                String   @id @default(cuid())
+  email             String   @unique
+  name              String
+  avatar            String?
+  height            Float // in inches
+  weight            Float // in lbs
+  age               Int
+  gender            String
+  fitnessGoals      String[]
+  activityLevel     String
+  dietaryPreferences String[]
+  emailNotifications Boolean @default(true)
+  telegramEnabled   Boolean @default(false)
+  telegramChatId    String?
+  isAdmin           Boolean  @default(false)
+  password          String
+  parqCompleted      Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  type              String   @default("registered") // 'guest' or 'registered'
+  notificationPreferences Json? // Stores granular notification settings (workoutReminders, nutritionTips, etc.)
+  tier              String   @default("free") // 'free', 'basic', 'premium'
+  subscriptionStatus String   @default("inactive") // 'active', 'cancelled', etc.
+  subscriptions     Subscription[]
+  nutritionLogs     NutritionLog[]
+  workoutLogs       WorkoutLog[]
+  parqResponses     ParqResponse[]
+  workoutPlans      WorkoutPlan[]
+  parqAnswers       Json?
+  // 2FA fields for admin
+  twoFactorSecret   String?
+  twoFactorEnabled  Boolean  @default(false)
+  @@map("user_profiles")
+}
+
+model WorkoutLog {
+  id         String   @id @default(uuid())
+  userId     String
+  planId     String
+  workoutId  String
+  date       DateTime @default(now())
+  exercises  Json     // Array of { exerciseId, sets: [{ reps, weight, completed }] }
+  notes      String?
+  user       UserProfile @relation(fields: [userId], references: [id])
+}
+
+model Plan {
+  id    String   @id @default(cuid())
+  name  String
+  price Float
+  subscriptions Subscription[] @relation("PlanSubscriptions")
+}
+
+model Payment {
+  id             String   @id @default(cuid())
+  subscriptionId String
+  amount         Float
+  date           DateTime @default(now())
+  status         String
+  subscription   Subscription @relation(fields: [subscriptionId], references: [id])
+}
+
+model Subscription {
+  id         String   @id @default(cuid())
+  userId     String
+  planId     String   // Stripe price ID (also used as Plan relation foreign key)
+  plan       String   // Human-readable plan name
+  status     String   // e.g. 'active', 'cancelled', 'expired'
+  startDate  DateTime
+  endDate    DateTime?
+  user       UserProfile @relation(fields: [userId], references: [id])
+  planRef    Plan?      @relation("PlanSubscriptions", fields: [planId], references: [id])
+  payments   Payment[]
+}
+
+model NutritionLog {
+  id         String   @id @default(cuid())
+  userId     String
+  date       DateTime @default(now())
+  foods      Json     // Array of foods, macros, etc.
+  calories   Float
+  notes      String?
+  user       UserProfile @relation(fields: [userId], references: [id])
+}
+
+model ContentItem {
+  id         String   @id @default(cuid())
+  title      String
+  type       String   // e.g. 'article', 'tip', 'announcement'
+  body       String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model ParqResponse {
+  id              String   @id @default(uuid())
+  userId          String
+  user            UserProfile @relation(fields: [userId], references: [id])
+  answers         Json
+  flagged         Boolean  @default(false)
+  flaggedQuestions String[]
+  notes           String[]
+  reviewed        Boolean  @default(false)
+  reviewedBy      String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model WorkoutPlan {
+  id                String   @id @default(cuid())
+  userId            String
+  user              UserProfile @relation(fields: [userId], references: [id])
+  name              String
+  description       String
+  duration          Int // in weeks
+  workouts          Json // Array of workouts (structure defined in frontend)
+  targetMuscleGroups String[]
+  difficulty        String
+  isDefault         Boolean @default(false)
+  completed         Boolean @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+} 
