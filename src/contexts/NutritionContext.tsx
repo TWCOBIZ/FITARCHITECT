@@ -1,17 +1,39 @@
-import React, { createContext, useContext, useState, useEffect } from 'react'
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import { useAuth } from './AuthContext'
 import { useOpenAI } from './OpenAIContext'
 import { openFoodFactsService } from '../services/openFoodFactsService'
 import { FoodEntry, MealPlan, DailyLog } from '../types/nutrition'
 import toast from 'react-hot-toast'
+import { useProfile } from './ProfileContext'
+
+interface Analytics {
+  calories: number[];
+  protein: number[];
+  carbs: number[];
+  fat: number[];
+  dates: string[];
+  streak: number;
+  bestStreak: number;
+  avgCalories: number;
+  avgProtein: number;
+  avgCarbs: number;
+  avgFat: number;
+}
 
 interface NutritionContextType {
-  dailyLog: DailyLog
-  mealPlan: MealPlan[]
-  addFoodEntry: (entry: FoodEntry) => void
-  removeFoodEntry: (index: number) => void
-  generateMealPlan: () => Promise<void>
-  scanBarcode: () => Promise<FoodEntry | null>
+  dailyLog: DailyLog | null;
+  mealPlan: MealPlan | null;
+  analytics: Analytics | null;
+  loading: boolean;
+  error: string | null;
+  fetchDailyLog: () => Promise<void>;
+  addFoodEntry: (entry: FoodEntry) => Promise<void>;
+  updateFoodEntry: (index: number, entry: FoodEntry) => Promise<void>;
+  removeFoodEntry: (index: number) => Promise<void>;
+  fetchMealPlan: () => Promise<void>;
+  generateMealPlan: () => Promise<void>;
+  getAnalytics: () => Promise<void>;
+  scanBarcode: (barcode: string) => Promise<FoodEntry | null>;
 }
 
 const NutritionContext = createContext<NutritionContextType | undefined>(undefined)
@@ -60,155 +82,248 @@ function enforceMealPlanCompleteness(plan: any[]): any[] {
 export const NutritionProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useAuth()
   const { generateMealPlan: generateWithGPT } = useOpenAI()
-  const [dailyLog, setDailyLog] = useState<DailyLog>({
-    date: new Date(),
-    calories: 0,
-    calorieGoal: 2000,
-    protein: 0,
-    proteinGoal: 150,
-    carbs: 0,
-    carbsGoal: 250,
-    fat: 0,
-    fatGoal: 65,
-    entries: []
-  })
-  const [mealPlan, setMealPlan] = useState<MealPlan[]>([])
+  const { nutritionProfile } = useProfile()
+  const [dailyLog, setDailyLog] = useState<DailyLog | null>(null)
+  const [mealPlan, setMealPlan] = useState<MealPlan | null>(null)
+  const [analytics, setAnalytics] = useState<Analytics | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    // Load user's daily log from storage/API
-    loadDailyLog()
-    // Load meal plan from localStorage
-    const saved = localStorage.getItem('mealPlan')
-    if (saved) {
-      setMealPlan(JSON.parse(saved))
-    }
-  }, [user])
-
-  const loadDailyLog = async () => {
+  // Fetch today's log on mount
+  const fetchDailyLog = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch('/api/nutrition-log')
-      if (!res.ok) throw new Error('Failed to load logs')
+      const res = await fetch('/api/nutrition-log', { method: 'GET', headers: { 'Content-Type': 'application/json' } })
+      if (!res.ok) throw new Error('Failed to fetch logs')
       const logs = await res.json()
-      // Find today's log or use default
       const today = new Date().toISOString().slice(0, 10)
       const todaysLog = logs.find((log: any) => log.date && log.date.slice(0, 10) === today)
       setDailyLog(todaysLog || {
         date: new Date(),
         calories: 0,
-        calorieGoal: 2000,
+        calorieGoal: nutritionProfile?.calorieGoal || 2000,
         protein: 0,
-        proteinGoal: 150,
+        proteinGoal: nutritionProfile?.macroTargets.protein || 150,
         carbs: 0,
-        carbsGoal: 250,
+        carbsGoal: nutritionProfile?.macroTargets.carbs || 250,
         fat: 0,
-        fatGoal: 65,
+        fatGoal: nutritionProfile?.macroTargets.fat || 65,
         entries: []
       })
     } catch (err: any) {
-      setError('Could not load logs, using local data.')
-      // fallback to localStorage
-      const saved = localStorage.getItem('dailyLog')
-      if (saved) setDailyLog(JSON.parse(saved))
+      setError('Could not load logs')
     } finally {
       setLoading(false)
     }
-  }
+  }, [nutritionProfile])
 
+  // Add food entry
   const addFoodEntry = async (entry: FoodEntry) => {
     setLoading(true)
     setError(null)
     try {
+      const log = dailyLog || {
+        date: new Date(),
+        calories: 0,
+        calorieGoal: nutritionProfile?.calorieGoal || 2000,
+        protein: 0,
+        proteinGoal: nutritionProfile?.macroTargets.protein || 150,
+        carbs: 0,
+        carbsGoal: nutritionProfile?.macroTargets.carbs || 250,
+        fat: 0,
+        fatGoal: nutritionProfile?.macroTargets.fat || 65,
+        entries: []
+      }
+      const updatedEntries = [...log.entries, entry]
+      const updatedLog = {
+        ...log,
+        entries: updatedEntries,
+        calories: updatedEntries.reduce((a, f) => a + (f.calories || 0), 0),
+        protein: updatedEntries.reduce((a, f) => a + (f.protein || 0), 0),
+        carbs: updatedEntries.reduce((a, f) => a + (f.carbs || 0), 0),
+        fat: updatedEntries.reduce((a, f) => a + (f.fat || 0), 0)
+      }
       const res = await fetch('/api/nutrition-log', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...dailyLog, entries: [...dailyLog.entries, entry] })
+        body: JSON.stringify(updatedLog)
       })
       if (!res.ok) throw new Error('Failed to log food')
-      const updated = await res.json()
-      setDailyLog(updated)
+      const saved = await res.json()
+      setDailyLog(saved)
       toast.success('Food logged!')
-      localStorage.setItem('dailyLog', JSON.stringify(updated))
     } catch (err: any) {
-      setError('Could not log food, using local data.')
-      // fallback to localStorage
-      const updated = { ...dailyLog, entries: [...dailyLog.entries, entry] }
-      setDailyLog(updated)
-      localStorage.setItem('dailyLog', JSON.stringify(updated))
-      toast.error('Logged locally.')
+      setError('Could not log food')
+      toast.error('Could not log food')
     } finally {
       setLoading(false)
     }
   }
 
-  const removeFoodEntry = (index: number) => {
-    setDailyLog(prev => {
-      const entry = prev.entries[index]
-      return {
-        ...prev,
-        calories: prev.calories - entry.calories,
-        protein: prev.protein - entry.protein,
-        carbs: prev.carbs - entry.carbs,
-        fat: prev.fat - entry.fat,
-        entries: prev.entries.filter((_, i) => i !== index)
+  // Update food entry
+  const updateFoodEntry = async (index: number, entry: FoodEntry) => {
+    setLoading(true)
+    setError(null)
+    try {
+      if (!dailyLog) return
+      const updatedEntries = dailyLog.entries.map((e, i) => (i === index ? entry : e))
+      const updatedLog = {
+        ...dailyLog,
+        entries: updatedEntries,
+        calories: updatedEntries.reduce((a, f) => a + (f.calories || 0), 0),
+        protein: updatedEntries.reduce((a, f) => a + (f.protein || 0), 0),
+        carbs: updatedEntries.reduce((a, f) => a + (f.carbs || 0), 0),
+        fat: updatedEntries.reduce((a, f) => a + (f.fat || 0), 0)
       }
-    })
+      const res = await fetch('/api/nutrition-log', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedLog)
+      })
+      if (!res.ok) throw new Error('Failed to update food entry')
+      const saved = await res.json()
+      setDailyLog(saved)
+      toast.success('Food entry updated!')
+    } catch (err: any) {
+      setError('Could not update food entry')
+      toast.error('Could not update food entry')
+    } finally {
+      setLoading(false)
+    }
   }
 
+  // Remove food entry
+  const removeFoodEntry = async (index: number) => {
+    setLoading(true)
+    setError(null)
+    try {
+      if (!dailyLog) return
+      const updatedEntries = dailyLog.entries.filter((_, i) => i !== index)
+      const updatedLog = {
+        ...dailyLog,
+        entries: updatedEntries,
+        calories: updatedEntries.reduce((a, f) => a + (f.calories || 0), 0),
+        protein: updatedEntries.reduce((a, f) => a + (f.protein || 0), 0),
+        carbs: updatedEntries.reduce((a, f) => a + (f.carbs || 0), 0),
+        fat: updatedEntries.reduce((a, f) => a + (f.fat || 0), 0)
+      }
+      const res = await fetch('/api/nutrition-log', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedLog)
+      })
+      if (!res.ok) throw new Error('Failed to remove food entry')
+      const saved = await res.json()
+      setDailyLog(saved)
+      toast.success('Food entry removed!')
+    } catch (err: any) {
+      setError('Could not remove food entry')
+      toast.error('Could not remove food entry')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Fetch meal plan
+  const fetchMealPlan = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/meal-plan', { method: 'GET', headers: { 'Content-Type': 'application/json' } })
+      if (!res.ok) throw new Error('Failed to fetch meal plan')
+      const data = await res.json()
+      setMealPlan(data.plan)
+    } catch (err: any) {
+      setError('Could not load meal plan')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  // Generate meal plan
   const generateMealPlan = async () => {
+    setLoading(true)
+    setError(null)
     try {
-      if (!user?.profile) {
-        throw new Error('User profile not found')
-      }
-      const plan = await retry(() => generateWithGPT({
-        type: 'meal_plan',
-        fitnessProfile: user.profile,
-        preferences: {
-          dietaryRestrictions: [],
-          allergies: [],
-          favoriteFoods: []
-        }
-      }), 3, 1000)
-      // Enforce completeness
-      const completePlan = enforceMealPlanCompleteness(plan)
-      setMealPlan(completePlan)
-      localStorage.setItem('mealPlan', JSON.stringify(completePlan))
-    } catch (error: any) {
-      console.error('Error generating meal plan:', error)
-      throw new Error('Could not generate meal plan after several attempts. Please try again later.')
+      if (!nutritionProfile) throw new Error('Nutrition profile not found')
+      const res = await fetch('/api/meal-plan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nutritionProfile })
+      })
+      if (!res.ok) throw new Error('Failed to generate meal plan')
+      const data = await res.json()
+      setMealPlan(data.plan)
+      toast.success('Meal plan generated!')
+    } catch (err: any) {
+      setError('Could not generate meal plan')
+      toast.error('Could not generate meal plan')
+    } finally {
+      setLoading(false)
     }
   }
 
-  const scanBarcode = async (): Promise<FoodEntry | null> => {
+  // Fetch analytics
+  const getAnalytics = useCallback(async () => {
+    setLoading(true)
+    setError(null)
     try {
-      // TODO: Implement barcode scanning
-      // For now, returning mock data
-      return {
-        name: 'Sample Food',
-        calories: 100,
-        protein: 10,
-        carbs: 15,
-        fat: 5,
-        servingSize: '100g',
-        servingUnit: 'g'
-      }
-    } catch (error) {
-      console.error('Error scanning barcode:', error)
+      const res = await fetch('/api/analytics', { method: 'GET', headers: { 'Content-Type': 'application/json' } })
+      if (!res.ok) throw new Error('Failed to fetch analytics')
+      const data = await res.json()
+      setAnalytics(data)
+    } catch (err: any) {
+      setError('Could not load analytics')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  // Barcode scan
+  const scanBarcode = async (barcode: string): Promise<FoodEntry | null> => {
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/food-scan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ barcode })
+      })
+      if (!res.ok) throw new Error('Failed to scan barcode')
+      const data = await res.json()
+      return data.foodEntry as FoodEntry
+    } catch (err: any) {
+      setError('Could not scan barcode')
+      toast.error('Could not scan barcode')
       return null
+    } finally {
+      setLoading(false)
     }
   }
+
+  // Initial load
+  useEffect(() => {
+    fetchDailyLog()
+    fetchMealPlan()
+    getAnalytics()
+  }, [fetchDailyLog, fetchMealPlan, getAnalytics])
 
   return (
     <NutritionContext.Provider
       value={{
         dailyLog,
         mealPlan,
+        analytics,
+        loading,
+        error,
+        fetchDailyLog,
         addFoodEntry,
+        updateFoodEntry,
         removeFoodEntry,
+        fetchMealPlan,
         generateMealPlan,
+        getAnalytics,
         scanBarcode
       }}
     >

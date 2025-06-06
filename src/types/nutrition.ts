@@ -6,6 +6,8 @@ export interface FoodEntry {
   fat: number
   servingSize: string
   servingUnit: string
+  imageUrl?: string
+  description?: string
   barcode?: string
   dietaryRestrictions?: string[]
   allergens?: string[]
@@ -38,10 +40,12 @@ export interface Meal {
   items: FoodEntry[]
 }
 
-export interface MealPlan {
-  name: string
+export interface MealPlanDay {
+  date: string
   meals: Meal[]
 }
+
+export type MealPlan = MealPlanDay[]
 
 export interface NutritionPreferences {
   dietaryRestrictions: string[]

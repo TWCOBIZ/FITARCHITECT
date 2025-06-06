@@ -172,6 +172,34 @@ ${exercises.map(e => `${e.name} (Muscles: ${e.muscles.join(', ')})`).join('\n')}
       return "Instructions not available";
     }
   }
+
+  async generateMealPlan(nutritionProfile: any): Promise<any> {
+    const prompt = `\nGenerate a 7-day meal plan for a user with the following profile:\n- Calorie goal: ${nutritionProfile.calorieGoal}\n- Dietary preferences: ${nutritionProfile.dietaryPreferences.join(', ') || 'None'}\n- Allergies: ${nutritionProfile.allergies.join(', ') || 'None'}\n- Macro targets: Protein ${nutritionProfile.macroTargets.protein}g, Carbs ${nutritionProfile.macroTargets.carbs}g, Fat ${nutritionProfile.macroTargets.fat}g\n\nFor each day, provide breakfast, lunch, dinner, and snack. Each meal should include:\n- Name\n- Description\n- Calories, protein, carbs, fat\n- Serving size and unit\n- (Optional) Image URL\n\nOutput as a JSON array of 7 days, each with a date and meals array as described.\n`;
+
+    const completion = await this.openai.chat.completions.create({
+      model: OPENAI_MODEL,
+      messages: [
+        {
+          role: "system",
+          content: "You are a registered dietitian creating personalized meal plans. Output ONLY valid JSON."
+        },
+        {
+          role: "user",
+          content: prompt
+        }
+      ],
+      max_tokens: 1800,
+      temperature: 0.7
+    });
+    const content = completion.choices[0].message.content;
+    let plan;
+    try {
+      plan = JSON.parse(content || '[]');
+    } catch (e) {
+      throw new Error('AI output was not valid JSON');
+    }
+    return plan;
+  }
 }
 
 export const openaiService = new OpenAIService(); 

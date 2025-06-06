@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { toast } from 'react-hot-toast'
 import { FaBell, FaTelegram, FaClock, FaChartLine, FaRunning, FaPaperPlane } from 'react-icons/fa'
 import { cardAnimations, staggerAnimations, animateWithReducedMotion, setUserMotionPreference, notificationAnimations } from '../../utils/animations'
-import TelegramService from '../../services/telegramService'
+import { TelegramService } from '../../services/telegramService'
 import axios from 'axios'
 
 interface NotificationPreferences {
@@ -141,10 +141,15 @@ ${preferences.motivationMessages ? '✅ Motivation messages\n' : '❌ Motivation
         )
       }
 
-      toast.success('Notification preferences saved successfully!')
-    } catch (error) {
-      console.error('Error saving notification preferences:', error)
-      toast.error('Failed to save notification preferences. Please try again.')
+      toast.success('Settings Updated ✓', {
+        duration: 3000,
+        style: { background: '#111', color: '#fff', fontWeight: 600, fontSize: '1rem', borderRadius: '0.75rem', boxShadow: '0 4px 24px rgba(0,0,0,0.25)' }
+      })
+    } catch {
+      toast.error('Save Failed - Please Try Again', {
+        duration: 3000,
+        style: { background: '#111', color: '#fff', fontWeight: 600, fontSize: '1rem', borderRadius: '0.75rem', boxShadow: '0 4px 24px rgba(0,0,0,0.25)' }
+      })
     } finally {
       setIsLoading(false)
     }

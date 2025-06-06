@@ -79,7 +79,7 @@ const WorkoutPlanView: React.FC<WorkoutPlanViewProps> = ({ userProfile }) => {
     )
   }
 
-  if (!currentPlan) {
+  if (!currentPlan || !currentPlan.workouts) {
     return (
       <div className="max-w-4xl mx-auto p-6">
         <h2 className="text-2xl font-bold mb-6">Your Workout Plan</h2>
@@ -114,31 +114,7 @@ const WorkoutPlanView: React.FC<WorkoutPlanViewProps> = ({ userProfile }) => {
         <p className="text-gray-600">{currentPlan.description}</p>
       </div>
 
-      {currentPlan.weeks && currentPlan.weeks.length > 0 && (
-        <div className="flex gap-2 mb-4">
-          {currentPlan.weeks.map((w, i) => (
-            <button
-              key={i}
-              className={`px-3 py-1 rounded ${selectedWeek === i ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}`}
-              onClick={() => setSelectedWeek(i)}
-            >
-              Week {w.week || i + 1}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {currentPlan.weeks && currentPlan.weeks[selectedWeek]?.days.map(day => (
-        <div key={day.day} className="mb-6">
-          <h4 className="font-semibold mb-2">Day {day.day}</h4>
-          {day.exercises.map((ex, idx) => (
-            <ExerciseCard key={idx} exercise={ex} />
-          ))}
-          {day.exercises.some(ex => ex.progression) && (
-            <div className="mt-2 text-sm text-blue-700">Progression: {day.exercises.map(ex => ex.progression).filter(Boolean).join('; ')}</div>
-          )}
-        </div>
-      ))}
+      {/* If you want to display by week/day, add logic here. For now, just show workouts */}
 
       <div className="space-y-6">
         {currentPlan.workouts.map(workout => (
@@ -170,7 +146,7 @@ const WorkoutPlanView: React.FC<WorkoutPlanViewProps> = ({ userProfile }) => {
                   <li key={exercise.exercise.id} className="text-sm">
                     <span className="font-medium">{exercise.exercise.name}</span>
                     <span className="text-gray-600">
-                      {' '}- {exercise.sets.length} sets × {exercise.sets[0].reps} reps
+                      {' '}- {Array.isArray(exercise.sets) ? exercise.sets.length : exercise.sets} sets × {Array.isArray(exercise.sets) && exercise.sets[0]?.reps ? exercise.sets[0].reps : ''} reps
                     </span>
                   </li>
                 ))}

@@ -1,4 +1,4 @@
-import { User } from './index'
+import { User } from './user'
 
 export interface LoginCredentials {
   email: string

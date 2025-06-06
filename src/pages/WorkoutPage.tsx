@@ -9,8 +9,13 @@ import WorkoutAnalytics from '../components/workout/WorkoutAnalytics'
 import axios from 'axios'
 import WorkoutPlanCustomizer from '../components/workout/WorkoutPlanCustomizer'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { isProfileComplete } from '../utils/profile'
+import { isProfileComplete } from '../utils/helpers'
 import { workoutService, generateWorkoutPlanWithRetry } from '../services/workoutService'
+import { wgerService } from '../services/wgerService'
+import { mapWgerExerciseToCanonical } from '../services/wgerService'
+import { toast } from 'react-hot-toast'
+import FeatureGateWrapper from '../components/common/FeatureGateWrapper'
+import { useWorkoutProfile } from '../hooks/useWorkoutProfile'
 
 type Tab = 'plans' | 'current' | 'tracker' | 'history' | 'analytics'
 
@@ -104,6 +109,23 @@ function defaultPlanToWorkoutPlan(plan: any): any {
   };
 }
 
+const defaultGoals = [
+  'Lose Weight',
+  'Build Muscle',
+  'Increase Endurance',
+  'General Fitness',
+];
+
+const defaultEquipment = [
+  'Dumbbells',
+  'Barbell',
+  'Kettlebell',
+  'Resistance Bands',
+  'Bodyweight',
+  'Treadmill',
+  'Bike',
+];
+
 const WorkoutPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<Tab>('plans')
   const { currentWorkout } = useWorkout()
@@ -111,19 +133,15 @@ const WorkoutPage: React.FC = () => {
   const [selectedDefault, setSelectedDefault] = useState<string | null>(null);
   const [workoutPlans, setWorkoutPlans] = useState<any[]>([]);
   const [customizingPlan, setCustomizingPlan] = useState<any | null>(null);
-  const [showAIGenerate, setShowAIGenerate] = useState(false);
-  const [aiForm, setAIForm] = useState({
-    fitnessGoal: 'strength',
-    equipment: [] as string[],
-    workoutDays: 3,
-    timePerWorkout: 45,
-    experienceLevel: 'beginner',
-  });
   const [aiLoading, setAILoading] = useState(false);
   const [aiError, setAIError] = useState<string | null>(null);
-  const aiFormRef = useRef<HTMLFormElement>(null);
   const navigate = useNavigate();
   const location = useLocation();
+  const workoutProfile = useWorkoutProfile();
+  const [selectedGoals, setSelectedGoals] = useState<string[]>(workoutProfile.fitnessGoals ? [workoutProfile.fitnessGoals] : []);
+  const [selectedEquipment, setSelectedEquipment] = useState<string[]>(workoutProfile.availableEquipment || []);
+  const [loading, setLoading] = useState(false);
+  const [plan, setPlan] = useState<any>(null);
 
   const tabs: { id: Tab; label: string }[] = [
     { id: 'plans', label: 'Workout Plans' },
@@ -168,14 +186,18 @@ const WorkoutPage: React.FC = () => {
       isDefault: plan.isDefault || false,
       completed: false,
     };
-    const res = await axios.post('/api/workout-plans', payload, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    });
-    setWorkoutPlans((prev) => [...prev, res.data]);
-    setCustomizingPlan(null);
-    setSelectedDefault(null);
-    setActiveTab('current');
-    alert('Plan saved!');
+    try {
+      const res = await axios.post('/api/workout-plans', payload, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      setWorkoutPlans((prev) => [...prev, res.data]);
+      setCustomizingPlan(null);
+      setSelectedDefault(null);
+      setActiveTab('current');
+      toast.success('Workout Saved ✓');
+    } catch {
+      toast.error('Save Failed - Please Try Again');
+    }
   };
 
   const handleDeletePlan = async (id: string) => {
@@ -197,17 +219,52 @@ const WorkoutPage: React.FC = () => {
 
   const selectedPlan = defaultPlans.find((p) => p.key === selectedDefault);
 
-  const handleAIGenerate = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const getMissingProfileFields = (profile: any) => {
+    const missing: string[] = [];
+    if (!profile.fitnessLevel) missing.push('Fitness Level');
+    if (!profile.fitnessGoals || profile.fitnessGoals.length === 0) missing.push('Goals');
+    if (!profile.availableEquipment || profile.availableEquipment.length === 0) missing.push('Available Equipment');
+    if (!profile.daysPerWeek) missing.push('Days Per Week');
+    if (!profile.preferredWorkoutDuration) missing.push('Preferred Workout Duration');
+    return missing;
+  };
+
+  const handleAIGenerate = async () => {
     setAILoading(true);
     setAIError(null);
+    const profile = user?.profile;
+    console.log('[WorkoutGen] Profile at generation time:', profile);
+    if (!profile) {
+      setAIError('Profile data is missing. Please complete your profile.');
+      setAILoading(false);
+      navigate('/profile', { state: { from: location.pathname, message: 'Please complete your profile.' } });
+      return;
+    }
+    // Validate required fields
+    const missingFields = getMissingProfileFields(profile);
+    if (missingFields.length > 0) {
+      setAILoading(false);
+      navigate('/profile', { state: { from: location.pathname, missingFields, message: `Please complete your profile: ${missingFields.join(', ')}` } });
+      return;
+    }
+    // Map profile fields to workout generation parameters
+    const userProfile = {
+      fitnessGoal: (profile.goals && profile.goals[0]) || 'strength',
+      experienceLevel: profile.fitnessLevel || 'beginner',
+      targetMuscles: profile.goals || [],
+      equipment: profile.availableEquipment || [],
+      workoutDays: profile.daysPerWeek,
+      timePerWorkout: profile.preferredWorkoutDuration
+    };
     try {
-      const plan = await generateWorkoutPlanWithRetry(aiForm);
+      const exercises = await wgerService.fetchExercises({ muscles: [], equipment: userProfile.equipment });
+      console.log('[WorkoutGen] WGER exercises fetched:', exercises);
+      const canonicalExercises = exercises.map(mapWgerExerciseToCanonical);
+      console.log('[WorkoutGen] Canonical exercises:', canonicalExercises);
+      const plan = await generateWorkoutPlanWithRetry(userProfile, canonicalExercises);
       setCustomizingPlan(plan);
-      setShowAIGenerate(false);
     } catch (err) {
-      setAIError('Could not generate workout plan after several attempts. Please try again later.');
-      // Optionally: toast.error('Could not generate workout plan after several attempts. Please try again later.');
+      setAIError('Failed to generate workout plan.');
     } finally {
       setAILoading(false);
     }
@@ -215,6 +272,30 @@ const WorkoutPage: React.FC = () => {
 
   // Allow test user to always generate AI workouts
   const canGenerateAI = user?.email === 'nepacreativeagency@icloud.com' ? true : user?.parqCompleted;
+
+  const handleGoalChange = (goal: string) => {
+    setSelectedGoals(g => g.includes(goal) ? g.filter(x => x !== goal) : [...g, goal]);
+  };
+  const handleEquipmentChange = (eq: string) => {
+    setSelectedEquipment(e => e.includes(eq) ? e.filter(x => x !== eq) : [...e, eq]);
+  };
+
+  const handleGenerate = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await axios.post('/api/workout/generate', {
+        ...workoutProfile,
+        fitnessGoals: selectedGoals,
+        availableEquipment: selectedEquipment,
+      });
+      setPlan(res.data.plan);
+    } catch (e: any) {
+      setError(e.response?.data?.error || 'Failed to generate workout plan.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const renderContent = () => {
     switch (activeTab) {
@@ -237,94 +318,15 @@ const WorkoutPage: React.FC = () => {
           <>
             <button
               className={`mb-4 bg-gradient-to-r from-blue-600 to-blue-400 text-white px-4 py-2 rounded shadow hover:from-blue-700 ${!canGenerateAI ? 'opacity-50 cursor-not-allowed' : ''}`}
-              onClick={() => canGenerateAI && setShowAIGenerate(true)}
-              disabled={!canGenerateAI}
+              onClick={canGenerateAI ? handleAIGenerate : undefined}
+              disabled={!canGenerateAI || aiLoading}
             >
-              Generate with AI
+              {aiLoading ? 'Generating...' : 'Generate with AI'}
             </button>
             {!canGenerateAI && (
               <div className="mb-4 text-red-600 font-semibold">You must complete the PAR-Q health assessment before generating a workout plan.</div>
             )}
-            {showAIGenerate && (
-              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                <form
-                  ref={aiFormRef}
-                  onSubmit={handleAIGenerate}
-                  className="bg-black border border-gray-800 rounded-xl p-8 max-w-md w-full shadow-lg text-white"
-                >
-                  <h2 className="text-2xl font-bold mb-4">AI-Generated Workout Plan</h2>
-                  <div className="mb-4">
-                    <label className="block mb-1 font-medium text-gray-200">Fitness Goal</label>
-                    <select
-                      className="w-full border border-gray-700 rounded bg-gray-900 text-white px-3 py-2 focus:outline-none"
-                      value={aiForm.fitnessGoal}
-                      onChange={e => setAIForm(f => ({ ...f, fitnessGoal: e.target.value }))}
-                    >
-                      <option value="strength">Strength</option>
-                      <option value="endurance">Endurance</option>
-                      <option value="weight-loss">Weight Loss</option>
-                      <option value="muscle gain">Muscle Gain</option>
-                    </select>
-                  </div>
-                  <div className="mb-4">
-                    <label className="block mb-1 font-medium text-gray-200">Available Equipment</label>
-                    <div className="flex flex-wrap gap-2">
-                      {['dumbbells','barbell','resistance bands','pull-up bar','bench','gym membership','bodyweight'].map(eq => (
-                        <label key={eq} className="flex items-center gap-1 text-gray-300">
-                          <input
-                            type="checkbox"
-                            checked={aiForm.equipment.includes(eq)}
-                            onChange={e => setAIForm(f => ({
-                              ...f,
-                              equipment: e.target.checked ? [...f.equipment, eq] : f.equipment.filter(x => x !== eq)
-                            }))}
-                            className="accent-blue-600 bg-gray-900 border-gray-700 rounded focus:ring-blue-500"
-                          />
-                          <span>{eq}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="mb-4">
-                    <label className="block mb-1 font-medium text-gray-200">Workout Days per Week</label>
-                    <select
-                      className="w-full border border-gray-700 rounded bg-gray-900 text-white px-3 py-2 focus:outline-none"
-                      value={aiForm.workoutDays}
-                      onChange={e => setAIForm(f => ({ ...f, workoutDays: Number(e.target.value) }))}
-                    >
-                      {[2,3,4,5,6].map(d => <option key={d} value={d}>{d}</option>)}
-                    </select>
-                  </div>
-                  <div className="mb-4">
-                    <label className="block mb-1 font-medium text-gray-200">Session Duration (minutes)</label>
-                    <select
-                      className="w-full border border-gray-700 rounded bg-gray-900 text-white px-3 py-2 focus:outline-none"
-                      value={aiForm.timePerWorkout}
-                      onChange={e => setAIForm(f => ({ ...f, timePerWorkout: Number(e.target.value) }))}
-                    >
-                      {[15,30,45,60,75,90].map(m => <option key={m} value={m}>{m}</option>)}
-                    </select>
-                  </div>
-                  <div className="mb-4">
-                    <label className="block mb-1 font-medium text-gray-200">Experience Level</label>
-                    <select
-                      className="w-full border border-gray-700 rounded bg-gray-900 text-white px-3 py-2 focus:outline-none"
-                      value={aiForm.experienceLevel}
-                      onChange={e => setAIForm(f => ({ ...f, experienceLevel: e.target.value }))}
-                    >
-                      <option value="beginner">Beginner</option>
-                      <option value="intermediate">Intermediate</option>
-                      <option value="advanced">Advanced</option>
-                    </select>
-                  </div>
-                  {aiError && <div className="text-red-400 mb-2 font-semibold">{aiError}</div>}
-                  <div className="flex gap-4 mt-6">
-                    <button type="button" className="bg-gray-700 text-gray-300 px-4 py-2 rounded" onClick={() => setShowAIGenerate(false)}>Cancel</button>
-                    <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded" disabled={aiLoading}>{aiLoading ? 'Generating...' : 'Generate Plan'}</button>
-                  </div>
-                </form>
-              </div>
-            )}
+            {aiError && <div className="text-red-400 mb-2 font-semibold">{aiError}</div>}
             <h2 className="text-xl font-semibold mb-4 mt-8">Choose a Goal</h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
               {defaultPlans.map((plan) => (
@@ -432,28 +434,30 @@ const WorkoutPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-black text-white py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-5xl mx-auto bg-black rounded-lg border border-gray-800 p-8">
-        <h1 className="text-3xl font-bold mb-2">Workouts</h1>
-        <p className="text-gray-400 mb-8">Track your fitness journey and achieve your goals</p>
-        {/* Tabs */}
-        <div className="flex gap-2 mb-8">
-          {tabs.map(tab => (
-            <button
-              key={tab.id}
-              className={`px-4 py-2 rounded font-semibold transition-colors focus:outline-none ${activeTab === tab.id ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'}`}
-              onClick={() => setActiveTab(tab.id)}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-        {/* Main Panel Content */}
-        <div className="bg-black rounded-lg border border-gray-800 p-6">
-          {renderContent()}
+    <FeatureGateWrapper>
+      <div className="min-h-screen bg-black text-white py-12 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-5xl mx-auto bg-black rounded-lg border border-gray-800 p-8">
+          <h1 className="text-3xl font-bold mb-2">Workouts</h1>
+          <p className="text-gray-400 mb-8">Track your fitness journey and achieve your goals</p>
+          {/* Tabs */}
+          <div className="flex gap-2 mb-8">
+            {tabs.map(tab => (
+              <button
+                key={tab.id}
+                className={`px-4 py-2 rounded font-semibold transition-colors focus:outline-none ${activeTab === tab.id ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'}`}
+                onClick={() => setActiveTab(tab.id)}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+          {/* Main Panel Content */}
+          <div className="bg-black rounded-lg border border-gray-800 p-6">
+            {renderContent()}
+          </div>
         </div>
       </div>
-    </div>
+    </FeatureGateWrapper>
   )
 }
 

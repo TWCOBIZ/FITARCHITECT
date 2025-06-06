@@ -35,7 +35,7 @@ function EditNutritionLogModal({ log, onClose, onSave }: EditNutritionLogModalPr
     const token = localStorage.getItem('token');
     const res = await fetch(`/api/nutrition-log/${log.id}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      headers: token ? { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` } : { 'Content-Type': 'application/json' },
       body: JSON.stringify({ foods, calories, macros, notes }),
     });
     setLoading(false);
@@ -77,18 +77,29 @@ export default function NutritionHistory() {
   const [logs, setLogs] = useState<NutritionLog[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [editingLog, setEditingLog] = useState<NutritionLog | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchLogs = () => {
     const token = localStorage.getItem('token');
     fetch('/api/nutrition-log', {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
     })
-      .then(res => res.json())
-      .then((data: NutritionLog[]) => {
-        setLogs(data);
+      .then(res => {
+        if (res.status === 401) {
+          setError('Session expired. Please log in again.');
+          setLoading(false);
+          return null;
+        }
+        return res.json();
+      })
+      .then((data: NutritionLog[] | null) => {
+        if (data) setLogs(data);
         setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch(() => {
+        setError('Failed to load nutrition logs.');
+        setLoading(false);
+      });
   };
 
   useEffect(() => {
@@ -100,16 +111,21 @@ export default function NutritionHistory() {
     const token = localStorage.getItem('token');
     const res = await fetch(`/api/nutrition-log/${id}`, {
       method: 'DELETE',
-      headers: { Authorization: `Bearer ${token}` },
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
     });
+    if (res.status === 401) {
+      setError('Session expired. Please log in again.');
+      return;
+    }
     if (res.ok) {
       setLogs(logs => logs.filter(l => l.id !== id));
     } else {
-      alert('Failed to delete log');
+      setError('Failed to delete log.');
     }
   };
 
   if (loading) return <div>Loading nutrition history...</div>;
+  if (error) return <div className="text-red-500 mb-4">{error}</div>;
 
   return (
     <div className="mt-8">

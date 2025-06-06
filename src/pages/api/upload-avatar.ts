@@ -1,35 +1,26 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { default as nextConnect } from 'next-connect';
 import multer from 'multer';
-import path from 'path';
-import fs from 'fs';
+import { v2 as cloudinary } from 'cloudinary';
+import streamifier from 'streamifier';
 
-// Ensure the avatars directory exists
-const avatarsDir = path.join(process.cwd(), 'public', 'avatars');
-if (!fs.existsSync(avatarsDir)) {
-  fs.mkdirSync(avatarsDir, { recursive: true });
-}
-
-// Multer storage config
-const storage = multer.diskStorage({
-  destination: avatarsDir,
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    const uniqueName = `${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
-    cb(null, uniqueName);
-  },
+// Cloudinary config from env vars
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
 const upload = multer({
-  storage,
+  storage: multer.memoryStorage(),
   fileFilter: (req, file, cb) => {
-    if (/image\/(jpeg|jpg|png|gif|webp)/.test(file.mimetype)) {
+    if (/image\/(jpeg|jpg|png|webp)/.test(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error('Only image files are allowed!'));
+      cb(new Error('Only JPG, PNG, or WEBP image files are allowed!'));
     }
   },
-  limits: { fileSize: 2 * 1024 * 1024 }, // 2MB limit
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
 });
 
 const apiRoute = nextConnect<NextApiRequest, NextApiResponse>({
@@ -43,12 +34,32 @@ const apiRoute = nextConnect<NextApiRequest, NextApiResponse>({
 
 apiRoute.use(upload.single('avatar'));
 
-apiRoute.post((req: any, res) => {
+apiRoute.post(async (req: any, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'No file uploaded' });
   }
-  const fileUrl = `/avatars/${req.file.filename}`;
-  res.status(200).json({ url: fileUrl });
+  try {
+    // Upload to Cloudinary from buffer
+    const streamUpload = (fileBuffer: Buffer) => {
+      return new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+          {
+            folder: 'avatars',
+            transformation: [{ width: 800, height: 800, crop: 'limit' }],
+          },
+          (error, result) => {
+            if (result) resolve(result);
+            else reject(error);
+          }
+        );
+        streamifier.createReadStream(fileBuffer).pipe(stream);
+      });
+    };
+    const result: any = await streamUpload(req.file.buffer);
+    res.status(200).json({ url: result.secure_url });
+  } catch (err) {
+    res.status(500).json({ error: 'Image upload failed. Please try again.' });
+  }
 });
 
 export default apiRoute;

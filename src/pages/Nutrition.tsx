@@ -4,12 +4,16 @@ import NutritionLogForm from '../components/nutrition/NutritionLogForm';
 import NutritionHistory from '../components/nutrition/NutritionHistory';
 import NutritionAnalytics from '../components/nutrition/NutritionAnalytics';
 import { useUser } from '../contexts/UserContext'
-import { isProfileComplete } from '../utils/profile'
+import { isProfileComplete } from '../utils/helpers'
 import { useNavigate } from 'react-router-dom'
 
 const Nutrition: React.FC = () => {
   const { user } = useUser(); // user.profile is available for all nutrition features
   const navigate = useNavigate();
+
+  if (!user?.profile) {
+    // Handle missing user or profile gracefully
+  }
 
   useEffect(() => {
     if (!isProfileComplete(user)) {

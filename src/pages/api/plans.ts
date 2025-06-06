@@ -2,7 +2,7 @@ import type { NextApiRequest, NextApiResponse } from 'next'
 import Stripe from 'stripe'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
-  apiVersion: '2022-11-15',
+  apiVersion: '2025-05-28.basil',
 })
 
 const BASIC_PLAN_ID = process.env.STRIPE_BASIC_PLAN_ID as string
@@ -22,7 +22,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const result = filtered.map((p) => ({
       id: p.id,
       unit_amount: p.unit_amount,
-      product: typeof p.product === 'object' ? p.product.name : p.product,
+      product: typeof p.product === 'object' && 'name' in p.product ? (p.product as any).name : p.product,
     }))
     res.status(200).json(result)
   } catch (error) {

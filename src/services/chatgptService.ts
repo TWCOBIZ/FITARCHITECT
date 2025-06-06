@@ -1,6 +1,6 @@
 import axios from 'axios'
 import { Exercise, WorkoutPlan } from '../types/workout'
-import { wgerService, WgerExercise } from './wgerService'
+import { wgerService, mapWgerExerciseToCanonical } from './wgerService'
 import { OPENAI_MODEL } from '../config/openai'
 
 const CHATGPT_API_KEY = import.meta.env.VITE_OPENAI_API_KEY
@@ -31,26 +31,27 @@ class ChatGPTService {
     return ChatGPTService.instance
   }
 
-  private async getExercisesFromWger(muscleGroups: string[]): Promise<WgerExercise[]> {
-    const exercises: WgerExercise[] = []
+  private async getExercisesFromWger(muscleGroups: string[]): Promise<Exercise[]> {
+    const exercises: Exercise[] = []
     for (const muscle of muscleGroups) {
-      const response = await wgerService.searchExercises(muscle)
-      exercises.push(...response)
+      const response = await wgerService.fetchExercises({ muscles: [muscle] })
+      const mapped = response.map(mapWgerExerciseToCanonical)
+      exercises.push(...mapped)
     }
     return exercises
   }
 
-  private convertWgerExerciseToExercise(wgerExercise: WgerExercise): Exercise {
+  private convertWgerExerciseToExercise(ex: Exercise): Exercise {
     return {
-      id: wgerExercise.uuid,
-      name: wgerExercise.name,
-      description: wgerExercise.description,
-      muscleGroups: [], // Will be populated from wgerExercise.muscles
-      equipment: [], // Will be populated from wgerExercise.equipment
-      difficulty: 'beginner', // Default, will be adjusted based on user profile
-      instructions: wgerExercise.comments.map(comment => comment.comment),
-      videoUrl: undefined,
-      imageUrl: wgerExercise.images[0]?.image
+      id: ex.id,
+      name: ex.name,
+      description: ex.description || '',
+      muscleGroups: Array.isArray(ex.muscleGroups) ? ex.muscleGroups : [],
+      equipment: Array.isArray(ex.equipment) ? ex.equipment : [],
+      difficulty: 'beginner',
+      instructions: Array.isArray(ex.instructions) ? ex.instructions : [],
+      videoUrl: ex.videoUrl,
+      imageUrl: ex.imageUrl
     }
   }
 
@@ -113,7 +114,7 @@ class ChatGPTService {
     return [...new Set(muscleGroups)]
   }
 
-  private createWorkoutPlanPrompt(profile: UserProfile, exercises: WgerExercise[]): string {
+  private createWorkoutPlanPrompt(profile: UserProfile, exercises: Exercise[]): string {
     return `
       Create a ${profile.daysPerWeek}-day workout plan for a ${profile.age}-year-old ${profile.gender}
       with the following characteristics:
@@ -138,7 +139,7 @@ class ChatGPTService {
     `
   }
 
-  private parseChatGPTResponse(response: string, wgerExercises: WgerExercise[]): WorkoutPlan {
+  private parseChatGPTResponse(response: string, wgerExercises: Exercise[]): WorkoutPlan {
     // Parse the ChatGPT response and create a structured workout plan
     // This is a simplified version - you'll need to implement proper parsing
     return {

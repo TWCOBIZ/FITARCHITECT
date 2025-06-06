@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { WorkoutPlan, Workout, Exercise, WorkoutExercise, WorkoutType } from '../../types/workout'
 import { wgerService } from '../../services/wgerService'
+import { mapWgerExerciseToCanonical } from '../../services/wgerService'
 
 interface WorkoutPlanCustomizerProps {
   plan: WorkoutPlan
@@ -19,9 +20,9 @@ const WorkoutPlanCustomizer: React.FC<WorkoutPlanCustomizerProps> = ({
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedMuscleGroup, setSelectedMuscleGroup] = useState<string>('')
   const [isSearching, setIsSearching] = useState(false)
-  const [name, setName] = useState(plan.title || plan.name || '')
+  const [name, setName] = useState(plan.name || '')
   const [description, setDescription] = useState(plan.description || '')
-  const [duration, setDuration] = useState(plan.weeks || plan.duration || 3)
+  const [duration, setDuration] = useState(plan.duration || 3)
   const [daysPerWeek, setDaysPerWeek] = useState(3)
 
   useEffect(() => {
@@ -29,8 +30,9 @@ const WorkoutPlanCustomizer: React.FC<WorkoutPlanCustomizerProps> = ({
       if (searchQuery || selectedMuscleGroup) {
         setIsSearching(true)
         try {
-          const exercises = await wgerService.searchExercises(searchQuery, selectedMuscleGroup)
-          setAvailableExercises(exercises)
+          const wgerExercises = await wgerService.fetchExercises({ muscles: [selectedMuscleGroup] })
+          const mapped = wgerExercises.map(mapWgerExerciseToCanonical)
+          setAvailableExercises(mapped)
         } catch (error) {
           console.error('Error fetching exercises:', error)
         } finally {
@@ -113,7 +115,6 @@ const WorkoutPlanCustomizer: React.FC<WorkoutPlanCustomizerProps> = ({
       name,
       description,
       duration,
-      daysPerWeek,
       workouts: editedPlan.workouts
     })
   }

@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { Exercise as CanonicalExercise, MuscleGroup, Equipment } from '../types/workout'
 
 const WGER_API_BASE_URL = 'https://wger.de/api/v2'
 
@@ -187,4 +188,26 @@ export class WGERService {
   }
 }
 
-export const wgerService = new WGERService() 
+export const wgerService = new WGERService()
+
+export function mapWgerExerciseToCanonical(wger: Exercise): CanonicalExercise {
+  const validMuscleGroups: MuscleGroup[] = [
+    'chest','back','shoulders','biceps','triceps','legs','core','fullBody'
+  ]
+  const validEquipment: Equipment[] = [
+    'barbell','dumbbell','kettlebell','machine','cable','bodyweight','resistanceBand','medicineBall','stabilityBall','foamRoller'
+  ]
+  return {
+    id: String(wger.id),
+    name: wger.name,
+    description: wger.description || '',
+    muscleGroups: (wger.muscles || []).filter((m): m is MuscleGroup => validMuscleGroups.includes(m as MuscleGroup)),
+    equipment: (wger.equipment || []).filter((e): e is Equipment => validEquipment.includes(e as Equipment)),
+    difficulty: (wger.difficulty === 'beginner' || wger.difficulty === 'intermediate' || wger.difficulty === 'advanced')
+      ? wger.difficulty
+      : 'intermediate',
+    instructions: wger.instructions || [],
+    videoUrl: undefined,
+    imageUrl: undefined
+  }
+} 

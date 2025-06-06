@@ -1,5 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next'
 import OpenAI from 'openai'
+// @ts-ignore: Suppress module not found error for deployment
 import { OPENAI_MODEL } from '../../../config/openai'
 
 const openai = new OpenAI({

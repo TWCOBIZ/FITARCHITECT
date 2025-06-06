@@ -1,13 +1,44 @@
 import { NextApiRequest, NextApiResponse } from 'next'
 import { getSession } from 'next-auth/react'
 import prisma from '../../../lib/db'
+import jwt from 'jsonwebtoken'
+
+const JWT_SECRET = process.env.JWT_SECRET || 'changeme';
+
+function getTokenFromHeader(req: NextApiRequest) {
+  const auth = req.headers.authorization;
+  if (auth && auth.startsWith('Bearer ')) {
+    return auth.split(' ')[1];
+  }
+  return null;
+}
+
+async function getUserFromRequest(req: NextApiRequest) {
+  const session = await getSession({ req });
+  if (session && session.user?.email) {
+    return { email: session.user.email };
+  }
+  const token = getTokenFromHeader(req);
+  if (token) {
+    try {
+      const payload = jwt.verify(token, JWT_SECRET);
+      if (typeof payload === 'object' && (payload as any).email) {
+        return { email: (payload as any).email };
+      }
+    } catch (e) {
+      console.error('[NOTIF-PREF] Invalid JWT:', e);
+      return null;
+    }
+  }
+  return null;
+}
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const session = await getSession({ req })
-  if (!session || !session.user?.email) {
-    return res.status(401).json({ message: 'Unauthorized' })
+  const userAuth = await getUserFromRequest(req);
+  if (!userAuth || !userAuth.email) {
+    return res.status(401).json({ message: 'Unauthorized' });
   }
-  const userEmail = session.user.email
+  const userEmail = userAuth.email;
 
   switch (req.method) {
     case 'GET': {
@@ -21,7 +52,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
         return res.status(200).json(profile.notificationPreferences || {})
       } catch (error) {
-        console.error('Error fetching notification preferences:', error)
+        console.error('[NOTIF-PREF] Error fetching notification preferences:', error)
         return res.status(500).json({ message: 'Internal server error' })
       }
     }
@@ -34,7 +65,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         })
         return res.status(200).json(updated.notificationPreferences)
       } catch (error) {
-        console.error('Error updating notification preferences:', error)
+        console.error('[NOTIF-PREF] Error updating notification preferences:', error)
         return res.status(500).json({ message: 'Internal server error' })
       }
     }

@@ -56,7 +56,7 @@ export default function SplashScreen() {
         break
       case "CONTINUE AS GUEST":
         continueAsGuest()
-          navigate('/dashboard')
+        navigate('/dashboard')
         break
     }
   }

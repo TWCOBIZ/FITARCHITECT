@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Exercise } from '../../types/workout'
-import { wgerService, WgerExercise } from '../../services/wgerService'
+import { wgerService, mapWgerExerciseToCanonical } from '../../services/wgerService'
 
 interface ExerciseDetailsProps {
   exercise: Exercise
@@ -9,21 +9,18 @@ interface ExerciseDetailsProps {
 }
 
 const ExerciseDetails: React.FC<ExerciseDetailsProps> = ({ exercise, onClose }) => {
-  const [wgerExercise, setWgerExercise] = useState<WgerExercise | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [wgerExercise, setWgerExercise] = useState<Exercise | null>(null)
   const [activeTab, setActiveTab] = useState<'instructions' | 'video' | 'tips'>('instructions')
 
   useEffect(() => {
     const fetchWgerDetails = async () => {
       try {
-        const exercises = await wgerService.searchExercises(exercise.name)
-        if (exercises.length > 0) {
-          setWgerExercise(exercises[0] as WgerExercise)
+        const wgerExercises = await wgerService.fetchExercises({ muscles: [exercise.name] })
+        if (wgerExercises.length > 0) {
+          setWgerExercise(mapWgerExerciseToCanonical(wgerExercises[0]))
         }
       } catch (error) {
         console.error('Error fetching exercise details:', error)
-      } finally {
-        setLoading(false)
       }
     }
 
@@ -34,14 +31,16 @@ const ExerciseDetails: React.FC<ExerciseDetailsProps> = ({ exercise, onClose }) 
     <div className="space-y-4">
       <h3 className="text-lg font-semibold">Form Instructions</h3>
       <div className="prose prose-sm max-w-none">
-        {exercise.instructions.map((instruction, index) => (
-          <div key={index} className="flex items-start space-x-3 mb-3">
-            <span className="flex-shrink-0 w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-sm font-medium">
-              {index + 1}
-            </span>
-            <p className="text-gray-700">{instruction}</p>
+        {wgerExercise?.instructions?.length > 0 && (
+          <div className="mt-4">
+            <h4 className="font-semibold mb-2">Instructions</h4>
+            <ul className="list-disc pl-6">
+              {wgerExercise.instructions.map((instruction, index: number) => (
+                <li key={index}>{instruction}</li>
+              ))}
+            </ul>
           </div>
-        ))}
+        )}
       </div>
     </div>
   )
@@ -87,12 +86,12 @@ const ExerciseDetails: React.FC<ExerciseDetailsProps> = ({ exercise, onClose }) 
             <li>Maintain proper breathing rhythm</li>
           </ul>
         </div>
-        {wgerExercise?.comments?.length > 0 && (
+        {wgerExercise?.instructions?.length > 0 && (
           <div className="p-4 bg-purple-50 rounded-lg">
             <h4 className="font-medium text-purple-800 mb-2">Community Tips</h4>
             <ul className="list-disc list-inside text-sm text-purple-700 space-y-1">
-              {wgerExercise.comments.map((comment, index: number) => (
-                <li key={index}>{comment.comment}</li>
+              {wgerExercise.instructions.map((instruction, index) => (
+                <li key={index}>{instruction}</li>
               ))}
             </ul>
           </div>
@@ -177,19 +176,10 @@ const ExerciseDetails: React.FC<ExerciseDetailsProps> = ({ exercise, onClose }) 
             </AnimatePresence>
           </div>
 
-          {wgerExercise?.images?.length > 0 && (
-            <div className="mt-6">
-              <h3 className="text-lg font-semibold mb-4">Exercise Images</h3>
-              <div className="grid grid-cols-2 gap-4">
-                {wgerExercise.images.map((image) => (
-                  <img
-                    key={image.id}
-                    src={image.image}
-                    alt={`${exercise.name} demonstration`}
-                    className="rounded-lg w-full h-48 object-cover"
-                  />
-                ))}
-              </div>
+          {wgerExercise?.imageUrl && (
+            <div className="mt-4">
+              <h4 className="font-semibold mb-2">Image</h4>
+              <img src={wgerExercise.imageUrl} alt={wgerExercise.name} className="w-32 h-32 object-cover rounded" />
             </div>
           )}
         </div>

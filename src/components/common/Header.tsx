@@ -1,10 +1,10 @@
 import React from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { useAuth } from '../../contexts/AuthContext'
+import { useUser } from '../../contexts/UserContext'
 import logo from '/assets/images/logo.png'
 
 const Header: React.FC = () => {
-  const { isAuthenticated, logout } = useAuth()
+  const { isAuthenticated, user, logout } = useUser()
   const navigate = useNavigate()
 
   const handleLogout = () => {

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import BarcodeScanner from './BarcodeScanner';
 import { openFoodFactsService } from '../../services/openFoodFactsService';
 import { api } from '../../services/api';
+import { toast } from 'react-hot-toast'
 
 interface NutritionLogFormProps {
   onLogged?: () => void;
@@ -87,18 +88,19 @@ export default function NutritionLogForm({ onLogged }: NutritionLogFormProps) {
     );
     const calories = foods.reduce((acc, f) => acc + Number(f.calories || 0), 0);
     try {
+      const token = localStorage.getItem('token');
       await api.post('/api/nutrition-log', {
         foods,
         calories,
         macros,
         notes,
-      });
+      }, token ? { headers: { Authorization: `Bearer ${token}` } } : undefined);
       setFoods([{ name: '', brand: '', barcode: '', calories: '', protein: '', carbs: '', fat: '' }]);
       setNotes('');
       if (onLogged) onLogged();
-      alert('Nutrition log saved!');
+      toast.success('Nutrition Logged ✓');
     } catch {
-      alert('Failed to log nutrition');
+      toast.error('Save Failed - Please Try Again');
     } finally {
       setLoading(false);
     }

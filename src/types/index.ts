@@ -1,9 +1,5 @@
 // Common types
-export interface User {
-  id: string
-  email: string
-  name: string
-}
+// Remove the User interface from this file. Use only the canonical User from src/types/user.ts.
 
 // API Response types
 export interface ApiResponse<T> {

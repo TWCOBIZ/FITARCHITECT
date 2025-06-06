@@ -18,14 +18,23 @@ interface NutritionTotals {
 const NutritionSummary: React.FC = () => {
   const [totals, setTotals] = useState<NutritionTotals>({ calories: 0, protein: 0, carbs: 0, fat: 0 });
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
     fetch('/api/nutrition-log', {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
     })
-      .then(res => res.json())
-      .then((logs: NutritionLog[]) => {
+      .then(res => {
+        if (res.status === 401) {
+          setError('Session expired. Please log in again.');
+          setLoading(false);
+          return null;
+        }
+        return res.json();
+      })
+      .then((logs: NutritionLog[] | null) => {
+        if (!logs) return;
         // Filter logs for today
         const today = new Date().toISOString().slice(0, 10);
         const todaysLogs = logs.filter((log: NutritionLog) => log.date && log.date.slice(0, 10) === today);
@@ -44,10 +53,14 @@ const NutritionSummary: React.FC = () => {
         setTotals({ calories, protein, carbs, fat });
         setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch(() => {
+        setError('Failed to load nutrition summary.');
+        setLoading(false);
+      });
   }, []);
 
   if (loading) return <div className="mb-4">Loading nutrition summary...</div>;
+  if (error) return <div className="mb-4 text-red-500">{error}</div>;
 
   return (
     <div className="mb-6 p-4 rounded bg-blue-50 flex flex-col md:flex-row md:space-x-8 items-center justify-between shadow">

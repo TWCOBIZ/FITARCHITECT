@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { FormInput } from '../common/FormInput'
 import { LoadingLogo } from '../common/LoadingLogo'
+import { toast } from 'react-hot-toast'
 
 export const LoginForm: React.FC = () => {
   const navigate = useNavigate()
@@ -48,10 +49,13 @@ export const LoginForm: React.FC = () => {
 
     try {
       await login(formData.email, formData.password)
+      toast.success('Welcome Back ✓')
       const from = (location.state as any)?.from?.pathname || '/dashboard'
       navigate(from, { replace: true })
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Invalid email or password')
+      const msg = err instanceof Error ? err.message : 'Invalid email or password'
+      setError(msg)
+      toast.error(`Login Failed${msg ? ': ' + msg : ''}`)
     } finally {
       setIsLoading(false)
     }

@@ -1,4 +1,4 @@
-import request from 'supertest'
+const request = require('supertest')
 import app from '../server'
 
 describe('API Endpoints', () => {
@@ -128,15 +128,21 @@ describe('API Endpoints', () => {
     // Get user from DB
     const prisma = require('../server').prisma || require('@prisma/client').PrismaClient;
     const db = new prisma();
-    const user = await db.userProfile.findUnique({ where: { email: testUserEmail } });
+    const user = await db.user.findUnique({ where: { email: testUserEmail } });
     expect(user).toBeTruthy();
-    // Set parqCompleted to true
-    await db.userProfile.update({ where: { id: user.id }, data: { parqCompleted: true } });
+    // Set parqCleared to true on the profile
+    await db.profile.updateMany({ where: { userId: user.id }, data: { parqCleared: true } });
+    // Ensure the plan exists
+    const planId = 'price_1RNGiSDJqnmZlsfMyaQp5RCy';
+    let plan = await db.plan.findUnique({ where: { id: planId } });
+    if (!plan) {
+      plan = await db.plan.create({ data: { id: planId, name: 'Premium', price: 29.99 } });
+    }
     // Create a premium subscription
     await db.subscription.create({
       data: {
         userId: user.id,
-        planId: 'price_1RNGiSDJqnmZlsfMyaQp5RCy', // Actual Premium plan id
+        planId,
         plan: 'Premium',
         status: 'active',
         startDate: new Date(),

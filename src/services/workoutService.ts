@@ -3,6 +3,7 @@ import { UserProfile } from '../types/user'
 import { wgerService } from './wgerService'
 import { openaiService } from './openaiService'
 import { Exercise } from '../types/workout'
+import { mapWgerExerciseToCanonical } from './wgerService'
 
 export class WorkoutService {
   private static instance: WorkoutService
@@ -42,7 +43,7 @@ export class WorkoutService {
       // Step 2: Try to enrich with wger, but continue even if it fails
       let enrichedPlan
       try {
-        enrichedPlan = await this.enrichWorkoutPlanWithWgerData(workoutPlan)
+        enrichedPlan = await this.enrichWorkoutPlanWithWgerData(workoutPlan, userProfile)
       } catch (wgerError) {
         console.error('wger API error, continuing with OpenAI only:', wgerError)
         enrichedPlan = workoutPlan
@@ -59,7 +60,7 @@ export class WorkoutService {
     }
   }
 
-  private async enrichWorkoutPlanWithWgerData(workoutPlan: any): Promise<any> {
+  private async enrichWorkoutPlanWithWgerData(workoutPlan: any, userProfile: any): Promise<any> {
     // Process each workout in the plan
     for (const week of workoutPlan.weeks) {
       for (const day of week.days) {
@@ -67,22 +68,14 @@ export class WorkoutService {
           const exercise = day.exercises[exerciseIndex]
           try {
             // Fetch all exercises and filter by name
-            const wgerExercises = await wgerService.fetchExercises({})
+            const wgerExercises = await wgerService.fetchExercises({
+              muscles: [],
+              equipment: userProfile && userProfile.availableEquipment ? userProfile.availableEquipment : []
+            })
             const wgerExercise = wgerExercises.find((ex) => ex.name.toLowerCase() === exercise.name.toLowerCase())
             if (wgerExercise) {
               // Map WGER Exercise to canonical Exercise type
-              const validMuscleGroups = ['chest','back','shoulders','biceps','triceps','legs','core','fullBody']
-              const validEquipment = ['barbell','dumbbell','kettlebell','machine','cable','bodyweight','resistanceBand','medicineBall','stabilityBall','foamRoller']
-              const canonicalExercise: Exercise = {
-                id: String(wgerExercise.id),
-                name: wgerExercise.name,
-                description: wgerExercise.description || '',
-                muscleGroups: wgerExercise.muscles ? wgerExercise.muscles.filter((m: string) => validMuscleGroups.includes(m.toLowerCase())) as any : [],
-                equipment: wgerExercise.equipment ? wgerExercise.equipment.filter((e: string) => validEquipment.includes(e.toLowerCase())) as any : [],
-                difficulty: (wgerExercise.difficulty === 'beginner' || wgerExercise.difficulty === 'intermediate' || wgerExercise.difficulty === 'advanced') ? wgerExercise.difficulty : 'intermediate',
-                instructions: wgerExercise.instructions || [],
-                // videoUrl and imageUrl are not available from WGER, leave as undefined
-              }
+              const canonicalExercise = mapWgerExerciseToCanonical(wgerExercise);
               day.exercises[exerciseIndex] = {
                 ...exercise,
                 ...canonicalExercise
@@ -238,21 +231,11 @@ export class WorkoutService {
     try {
       // Step 1: Fetch exercises from WGER
       const wgerExercises = await wgerService.fetchExercises({
-        muscles: [], // No direct mapping from UserProfile, so leave empty or infer from goals if needed
-        equipment: userProfile.availableEquipment
+        muscles: [],
+        equipment: userProfile && userProfile.availableEquipment ? userProfile.availableEquipment : []
       })
       // Map WGER exercises to canonical Exercise objects
-      const validMuscleGroups = ['chest','back','shoulders','biceps','triceps','legs','core','fullBody']
-      const validEquipment = ['barbell','dumbbell','kettlebell','machine','cable','bodyweight','resistanceBand','medicineBall','stabilityBall','foamRoller']
-      const exercises: Exercise[] = wgerExercises.map(wgerExercise => ({
-        id: String(wgerExercise.id),
-        name: wgerExercise.name,
-        description: wgerExercise.description || '',
-        muscleGroups: wgerExercise.muscles ? wgerExercise.muscles.filter((m: string) => validMuscleGroups.includes(m.toLowerCase())) as any : [],
-        equipment: wgerExercise.equipment ? wgerExercise.equipment.filter((e: string) => validEquipment.includes(e.toLowerCase())) as any : [],
-        difficulty: (wgerExercise.difficulty === 'beginner' || wgerExercise.difficulty === 'intermediate' || wgerExercise.difficulty === 'advanced') ? wgerExercise.difficulty : 'intermediate',
-        instructions: wgerExercise.instructions || [],
-      }))
+      const exercises: Exercise[] = wgerExercises.map(mapWgerExerciseToCanonical)
       // Map canonical UserProfile to OpenAI UserProfile
       const allowedGoals = ['strength', 'weight-loss', 'endurance'] as const;
       type FitnessGoal = typeof allowedGoals[number];
@@ -570,6 +553,68 @@ export async function retry<T>(fn: () => Promise<T>, retries = 3, delay = 1000):
 }
 
 // Wrap the main workout generation function with retry logic
-export async function generateWorkoutPlanWithRetry(params: any) {
-  return retry(() => generateWorkoutPlan(params), 3, 1000);
+export async function generateWorkoutPlanWithRetry(userProfile: any, exercises: any[]) {
+  console.log('[WorkoutGen] generateWorkoutPlanWithRetry called', { userProfile, exercises });
+  return retry(() => openaiService.generateWorkoutPlan(userProfile, exercises), 3, 1000);
+}
+
+// Diagnostic function to test all requirements for workout generation
+export async function diagnoseWorkoutGeneration(user: any, userProfile: any) {
+  const results: any = {};
+  // 1. Check environment variables
+  results.openaiApiKey = !!import.meta.env.VITE_OPENAI_API_KEY;
+  results.wgerApiKey = !!import.meta.env.VITE_WGER_API_KEY;
+  results.wgerApiToken = !!import.meta.env.VITE_WGER_API_TOKEN;
+  results.wgerApiUrl = !!import.meta.env.VITE_WGER_API_URL;
+
+  // 2. Check user authentication
+  results.isAuthenticated = !!user?.id;
+  results.email = user?.email;
+
+  // 3. Check PAR-Q completion
+  results.parqCompleted = user?.parqCompleted || userProfile?.parqCompleted;
+
+  // 4. Check profile completeness
+  results.profileComplete = !!userProfile && !!userProfile.fitnessLevel && !!userProfile.goals && userProfile.goals.length > 0 && !!userProfile.availableEquipment && userProfile.availableEquipment.length > 0 && !!userProfile.daysPerWeek && !!userProfile.preferredWorkoutDuration;
+
+  // 5. Test WGER API fetch
+  try {
+    const exercises = await wgerService.fetchExercises({ muscles: [], equipment: userProfile?.availableEquipment || [] });
+    results.wgerFetch = exercises && exercises.length > 0;
+  } catch (e) {
+    results.wgerFetch = false;
+    results.wgerFetchError = e;
+  }
+
+  // 6. Test OpenAI API call (dry run)
+  try {
+    const dummyExercises = [{
+      id: 'push-ups',
+      name: 'Push-ups',
+      description: 'A bodyweight exercise for chest and triceps.',
+      muscleGroups: ['chest'],
+      muscles: ['chest'],
+      equipment: ['bodyweight'],
+      difficulty: 'beginner',
+      instructions: ['Start in a plank position', 'Lower your body', 'Push back up'],
+      videoUrl: '',
+      imageUrl: ''
+    }];
+    await openaiService.generateWorkoutPlan({
+      fitnessGoal: 'strength',
+      experienceLevel: 'beginner',
+      targetMuscles: ['chest'],
+      equipment: ['bodyweight'],
+      workoutDays: 3,
+      timePerWorkout: 30
+    }, dummyExercises);
+    results.openaiCall = true;
+  } catch (e) {
+    results.openaiCall = false;
+    results.openaiCallError = e;
+  }
+
+  // 7. Return diagnostic report
+  console.log('[WorkoutGen] Diagnostic results:', results);
+  return results;
 } 

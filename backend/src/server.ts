@@ -31,9 +31,29 @@ if (TELEGRAM_BOT_TOKEN) {
   console.warn('TELEGRAM_BOT_TOKEN not set. Telegram notifications disabled.');
 }
 
-// Middleware
-app.use(cors());
+// CORS configuration for local dev
+app.use(cors({
+  origin: ['http://localhost:5173', 'http://localhost:3000'],
+  credentials: true
+}));
+
 app.use(express.json());
+
+// --- GET /api/profile route (uses userAuth and userId) ---
+app.get('/api/profile', userAuth, async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const profile = await prisma.userProfile.findUnique({ where: { id: userId } });
+    if (!profile) return res.status(404).json({ error: 'Profile not found' });
+
+    res.json(profile);
+  } catch (error) {
+    console.error('Error fetching profile:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
 
 // Utility: check if user is the test user who should always have full access
 function isTestUser(user: any) {
@@ -334,7 +354,9 @@ app.post('/api/login', async (req: Request, res: Response) => {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
     const token = jwt.sign({ userId: user.id, email: user.email }, JWT_SECRET, { expiresIn: '7d' });
-    res.json({ token, user: { id: user.id, email: user.email, name: user.name } });
+    // Add isGuest field if user.type is 'guest'
+    const userObj = { id: user.id, email: user.email, name: user.name, isGuest: user.type === 'guest' };
+    res.json({ token, user: userObj });
   } catch (error) {
     res.status(500).json({ error: 'Login failed' });
   }
@@ -411,37 +433,58 @@ app.get('/api/workout-log', userAuth, async (req: Request, res: Response) => {
   }
 });
 
-// Delete a nutrition log
-// app.delete('/api/nutrition-log/:id', userAuth, async (req: Request, res: Response) => {
-//   const userId = req.user.userId;
-//   const { id } = req.params;
-//   try {
-//     const log = await prisma.nutritionLog.findUnique({ where: { id } });
-//     if (!log || log.userId !== userId) return res.status(404).json({ error: 'Log not found' });
-//     await prisma.nutritionLog.delete({ where: { id } });
-//     res.json({ success: true });
-//   } catch {
-//     res.status(500).json({ error: 'Failed to delete log' });
-//   }
-// });
+// Nutrition log endpoints
+app.get('/api/nutrition-log', userAuth, async (req: Request, res: Response) => {
+  const userId = (req as any).user.id;
+  try {
+    const logs = await prisma.nutritionLog.findMany({ where: { userId } });
+    res.json(logs);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch nutrition logs' });
+  }
+});
 
-// Edit a nutrition log
-// app.put('/api/nutrition-log/:id', userAuth, async (req: Request, res: Response) => {
-//   const userId = req.user.userId;
-//   const { id } = req.params;
-//   const { foods, calories, macros, notes } = req.body;
-//   try {
-//     const log = await prisma.nutritionLog.findUnique({ where: { id } });
-//     if (!log || log.userId !== userId) return res.status(404).json({ error: 'Log not found' });
-//     const updated = await prisma.nutritionLog.update({
-//       where: { id },
-//       data: { foods, calories, macros, notes },
-//     });
-//     res.json(updated);
-//   } catch {
-//     res.status(500).json({ error: 'Failed to update log' });
-//   }
-// });
+app.post('/api/nutrition-log', userAuth, async (req: Request, res: Response) => {
+  const userId = (req as any).user.id;
+  const { date, foods, calories, macros, notes } = req.body;
+  if (!date || !foods || !Array.isArray(foods)) return res.status(400).json({ error: 'Invalid input' });
+  try {
+    const log = await prisma.nutritionLog.create({ data: { userId, date, foods, calories, macros, notes } });
+    res.status(201).json(log);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to create nutrition log' });
+  }
+});
+
+app.put('/api/nutrition-log/:id', userAuth, async (req: Request, res: Response) => {
+  const userId = (req as any).user.id;
+  const { id } = req.params;
+  const { foods, calories, macros, notes } = req.body;
+  try {
+    const log = await prisma.nutritionLog.findUnique({ where: { id } });
+    if (!log || log.userId !== userId) return res.status(404).json({ error: 'Log not found' });
+    const updated = await prisma.nutritionLog.update({
+      where: { id },
+      data: { foods, calories, macros, notes },
+    });
+    res.json(updated);
+  } catch {
+    res.status(500).json({ error: 'Failed to update nutrition log' });
+  }
+});
+
+app.delete('/api/nutrition-log/:id', userAuth, async (req: Request, res: Response) => {
+  const userId = (req as any).user.id;
+  const { id } = req.params;
+  try {
+    const log = await prisma.nutritionLog.findUnique({ where: { id } });
+    if (!log || log.userId !== userId) return res.status(404).json({ error: 'Log not found' });
+    await prisma.nutritionLog.delete({ where: { id } });
+    res.json({ success: true });
+  } catch {
+    res.status(500).json({ error: 'Failed to delete nutrition log' });
+  }
+});
 
 // Content management endpoints
 // app.get('/api/admin/content', adminAuth, async (req: Request, res: Response) => {
@@ -775,8 +818,12 @@ app.get('/api/admin/parq-report', adminAuth, async (req, res) => {
 app.patch('/api/parq-response', userAuth, async (req, res) => {
   try {
     const userId = req.user.id;
-    const { answers } = req.body;
-    const response = await prisma.parqResponse.create({ data: { userId, answers, flagged: false, flaggedQuestions: [], notes: [] } });
+    const answers = req.body.answers;
+    const flaggedQuestions = Object.entries(answers)
+      .filter(([id, value]) => value === true || value === 'Yes')
+      .map(([id]) => id);
+    const flagged = flaggedQuestions.length > 0;
+    const response = await prisma.parqResponse.create({ data: { userId, answers, flagged, flaggedQuestions, notes: [] } });
     // Update the user profile with the latest answers
     await prisma.userProfile.update({ where: { id: userId }, data: { parqAnswers: answers } });
     res.json(response);

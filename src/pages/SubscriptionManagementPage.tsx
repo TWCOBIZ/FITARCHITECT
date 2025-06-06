@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useUser } from '../contexts/UserContext'
 import { useStripe } from '../contexts/StripeContext'
 import { motion } from 'framer-motion'
+import { toast } from 'react-hot-toast'
 
 const getPlanPrice = (tier: string) => {
   switch (tier) {
@@ -65,8 +66,10 @@ export const SubscriptionManagementPage: React.FC = () => {
       }
       updateSubscription('free')
       setSubscription({ ...subscription, status: 'canceled', tier: 'free' })
+      toast.success('Subscription Updated ✓')
     } catch (error) {
       setError('Failed to cancel subscription. Please try again.')
+      toast.error('Save Failed - Please Try Again')
     } finally {
       setIsLoading(false)
     }
@@ -89,8 +92,10 @@ export const SubscriptionManagementPage: React.FC = () => {
       const data = await response.json()
       updateSubscription(data.tier)
       setSubscription(data)
+      toast.success('Subscription Updated ✓')
     } catch (error) {
       setError('Failed to renew subscription. Please try again.')
+      toast.error('Save Failed - Please Try Again')
     } finally {
       setIsLoading(false)
     }

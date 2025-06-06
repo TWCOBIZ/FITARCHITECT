@@ -15,6 +15,7 @@ interface WorkoutContextType {
     averageRating: number
     lastCompleted: Date | null
   }
+  completeWorkout: (workoutNotes: string, workoutRating: number) => void
 }
 
 const WorkoutContext = createContext<WorkoutContextType | undefined>(undefined)
@@ -48,6 +49,37 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   }
 
+  const completeWorkout = (workoutNotes: string, workoutRating: number) => {
+    if (!currentWorkout || !currentPlan) return;
+    // Construct WorkoutLog
+    const now = new Date();
+    const log: WorkoutLog = {
+      id: '', // Will be set by backend
+      userId: '', // Will be set by backend
+      planId: currentPlan.id,
+      workoutId: currentWorkout.id,
+      date: now,
+      exercises: currentWorkout.exercises.map(ex => ({
+        exerciseId: ex.exercise.id,
+        sets: [
+          {
+            reps: ex.reps,
+            weight: ex.weight || 0,
+            completed: true,
+            notes: ex.notes || ''
+          }
+        ],
+        notes: ex.notes || ''
+      })),
+      duration: currentWorkout.duration,
+      notes: workoutNotes,
+      rating: workoutRating,
+      completed: true
+    };
+    addWorkoutLog(log);
+    setCurrentWorkout(null);
+  }
+
   const getWorkoutHistory = () => {
     return workoutHistory
   }
@@ -77,7 +109,8 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setCurrentPlan,
         addWorkoutLog,
         getWorkoutHistory,
-        getWorkoutProgress
+        getWorkoutProgress,
+        completeWorkout
       }}
     >
       {children}

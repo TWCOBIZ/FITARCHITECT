@@ -31,4 +31,14 @@ export function debounce<T extends (...args: any[]) => any>(
     clearTimeout(timeout)
     timeout = setTimeout(later, wait)
   }
+}
+
+export function isProfileComplete(user: any): boolean {
+  if (!user) return false;
+  const profile = user.profile || user;
+  return !!profile.fitnessLevel &&
+    !!profile.goals && Array.isArray(profile.goals) && profile.goals.length > 0 &&
+    !!profile.availableEquipment && Array.isArray(profile.availableEquipment) && profile.availableEquipment.length > 0 &&
+    !!profile.daysPerWeek &&
+    !!profile.preferredWorkoutDuration;
 } 

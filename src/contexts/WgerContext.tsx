@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Exercise } from '../types/workout';
 import { api } from '../services/api'
+import { mapWgerExerciseToCanonical } from '../services/wgerService'
 
 interface WgerContextType {
   exercises: Exercise[];
@@ -50,13 +51,13 @@ export const WgerProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       const data = await response.json();
-      const formattedExercises = data.results.map((exercise: RawWgerExercise) => ({
-        id: exercise.id.toString(),
+      const formattedExercises = data.results.map((exercise: RawWgerExercise) => mapWgerExerciseToCanonical({
+        id: exercise.id,
         name: exercise.name,
-        description: exercise.description,
-        muscleGroups: exercise.muscles.map((m) => m.name),
+        muscles: exercise.muscles.map((m) => m.name),
         equipment: exercise.equipment.map((e) => e.name),
-        difficulty: exercise.difficulty || 'intermediate',
+        description: exercise.description,
+        difficulty: exercise.difficulty,
         instructions: exercise.instructions ? [exercise.instructions] : [],
       }));
 
@@ -90,15 +91,15 @@ export const WgerProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       const exercise = await response.json();
       const raw: RawWgerExercise = exercise;
-      return {
-        id: raw.id.toString(),
+      return mapWgerExerciseToCanonical({
+        id: raw.id,
         name: raw.name,
-        description: raw.description,
-        muscleGroups: raw.muscles.map((m) => m.name),
+        muscles: raw.muscles.map((m) => m.name),
         equipment: raw.equipment.map((e) => e.name),
-        difficulty: raw.difficulty || 'intermediate',
+        description: raw.description,
+        difficulty: raw.difficulty,
         instructions: raw.instructions ? [raw.instructions] : [],
-      };
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
       return null;

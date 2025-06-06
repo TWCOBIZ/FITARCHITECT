@@ -32,7 +32,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   }
 
   if (isGuest && !allowGuest) {
-    return <Navigate to="/dashboard" replace />
+    return <Navigate to="/landing" replace />
   }
 
   if (requireParq && !isCleared) {

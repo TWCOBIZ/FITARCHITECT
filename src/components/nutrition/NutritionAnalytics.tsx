@@ -27,6 +27,7 @@ function getLast7Days() {
 export default function NutritionAnalytics() {
   const [data, setData] = useState<DayData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const barsRef = useRef<(SVGRectElement | null)[]>([]);
 
   useEffect(() => {
@@ -34,8 +35,16 @@ export default function NutritionAnalytics() {
     fetch('/api/nutrition-log', {
       headers: { Authorization: `Bearer ${token}` },
     })
-      .then(res => res.json())
-      .then((logs: NutritionLog[]) => {
+      .then(res => {
+        if (res.status === 401) {
+          setError('Session expired. Please log in again.');
+          setLoading(false);
+          return null;
+        }
+        return res.json();
+      })
+      .then((logs: NutritionLog[] | null) => {
+        if (!logs) return;
         const days = getLast7Days();
         const dayTotals: Record<string, number> = {};
         days.forEach(day => { dayTotals[day] = 0; });
@@ -50,7 +59,10 @@ export default function NutritionAnalytics() {
         setData(days.map(date => ({ date, calories: dayTotals[date] })));
         setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch(() => {
+        setError('Failed to load nutrition analytics.');
+        setLoading(false);
+      });
   }, []);
 
   useEffect(() => {
@@ -66,6 +78,7 @@ export default function NutritionAnalytics() {
   }, [data]);
 
   if (loading) return <div className="mb-4">Loading analytics...</div>;
+  if (error) return <div className="mb-4 text-red-500">{error}</div>;
 
   const maxCalories = Math.max(...data.map(d => d.calories), 1);
 
