@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { toast } from 'react-hot-toast'
 import { FaBell, FaTelegram, FaClock, FaChartLine, FaRunning, FaPaperPlane } from 'react-icons/fa'
 import { cardAnimations, staggerAnimations, animateWithReducedMotion, setUserMotionPreference, notificationAnimations } from '../../utils/animations'
-import TelegramService from '../../services/telegramService'
+import { TelegramService } from '../../services/telegramService'
 import axios from 'axios'
 
 interface NotificationPreferences {

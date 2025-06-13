@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAdminAuth } from '../contexts/AdminAuthContext';
+import { useAuth } from '../contexts/AuthContext';
 
 const AdminLogin = () => {
-  const { login, loading, error } = useAdminAuth();
+  const { adminLogin, isLoading } = useAuth();
   const [email, setEmail] = useState('TWFITARCHITECT');
   const [password, setPassword] = useState('');
   const [formError, setFormError] = useState(null);
@@ -11,10 +11,10 @@ const AdminLogin = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const success = await login(email, password);
-    if (success) {
+    try {
+      await adminLogin(email, password);
       navigate('/admin/dashboard');
-    } else {
+    } catch (error) {
       setFormError('Invalid credentials');
     }
   };
@@ -42,13 +42,13 @@ const AdminLogin = () => {
             className="w-full px-3 py-2 rounded bg-gray-900 text-white border border-gray-700 focus:outline-none"
           />
         </div>
-        {(formError || error) && <div className="text-red-500 mb-4 text-sm">{formError || error}</div>}
+        {formError && <div className="text-red-500 mb-4 text-sm">{formError}</div>}
         <button
           type="submit"
           className="w-full py-2 bg-blue-600 hover:bg-blue-700 rounded text-white font-semibold transition-colors"
-          disabled={loading}
+          disabled={isLoading}
         >
-          {loading ? 'Logging in...' : 'Login'}
+          {isLoading ? 'Logging in...' : 'Login'}
         </button>
       </form>
     </div>

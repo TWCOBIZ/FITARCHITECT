@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useUser } from '../contexts/UserContext'
+import { useAuth } from '../contexts/AuthContext'
 import { useStripe } from '../contexts/StripeContext'
 import { motion } from 'framer-motion'
 
@@ -19,7 +19,7 @@ const getPlanPrice = (tier: string) => {
 
 export const SubscriptionManagementPage: React.FC = () => {
   const navigate = useNavigate()
-  const { subscriptionTier, updateSubscription } = useUser()
+  const { subscriptionTier, updateSubscription } = useAuth()
   const { stripePromise } = useStripe()
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)

@@ -58,7 +58,7 @@ function enforceMealPlanCompleteness(plan: any[]): any[] {
 }
 
 export const NutritionProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user } = useAuth()
+  const { user, isLoading: authLoading } = useAuth()
   const { generateMealPlan: generateWithGPT } = useOpenAI()
   const [dailyLog, setDailyLog] = useState<DailyLog>({
     date: new Date(),
@@ -76,21 +76,48 @@ export const NutritionProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  const loadGuestData = () => {
+    // Load guest nutrition data from localStorage
+    const saved = localStorage.getItem('guestNutritionLog')
+    if (saved) {
+      setDailyLog(JSON.parse(saved))
+    }
+  }
+
   useEffect(() => {
-    // Load user's daily log from storage/API
-    loadDailyLog()
-    // Load meal plan from localStorage
+    // Wait for auth to finish loading before making any data calls
+    if (authLoading) {
+      return
+    }
+    
+    // Only load API data for registered users (not guests)
+    if (user && !user.isGuest && user.type !== 'guest') {
+      loadDailyLog()
+    } else if (user) {
+      // For guests, load from localStorage
+      loadGuestData()
+    }
+    // Load meal plan from localStorage for all users
     const saved = localStorage.getItem('mealPlan')
     if (saved) {
       setMealPlan(JSON.parse(saved))
     }
-  }, [user])
+  }, [user, authLoading])
 
   const loadDailyLog = async () => {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch('/api/nutrition-log')
+      const token = localStorage.getItem('token')
+      if (!token) {
+        throw new Error('No token available')
+      }
+      
+      const res = await fetch('/api/nutrition-log', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
       if (!res.ok) throw new Error('Failed to load logs')
       const logs = await res.json()
       // Find today's log or use default
@@ -119,26 +146,51 @@ export const NutritionProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   }
 
   const addFoodEntry = async (entry: FoodEntry) => {
+    const updatedLog = { 
+      ...dailyLog, 
+      entries: [...dailyLog.entries, entry],
+      calories: dailyLog.calories + entry.calories,
+      protein: dailyLog.protein + entry.protein,
+      carbs: dailyLog.carbs + entry.carbs,
+      fat: dailyLog.fat + entry.fat
+    }
+    
+    // For guests, only use localStorage
+    if (user?.isGuest || user?.type === 'guest') {
+      setDailyLog(updatedLog)
+      localStorage.setItem('guestNutritionLog', JSON.stringify(updatedLog))
+      toast.success('Food logged!')
+      return
+    }
+    
+    // For registered users, try API first, fallback to localStorage
     setLoading(true)
     setError(null)
     try {
+      const token = localStorage.getItem('token')
+      if (!token) {
+        throw new Error('No token available')
+      }
+      
       const res = await fetch('/api/nutrition-log', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...dailyLog, entries: [...dailyLog.entries, entry] })
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(updatedLog)
       })
       if (!res.ok) throw new Error('Failed to log food')
-      const updated = await res.json()
-      setDailyLog(updated)
+      const apiResponse = await res.json()
+      setDailyLog(apiResponse)
       toast.success('Food logged!')
-      localStorage.setItem('dailyLog', JSON.stringify(updated))
+      localStorage.setItem('dailyLog', JSON.stringify(apiResponse))
     } catch (err: any) {
       setError('Could not log food, using local data.')
       // fallback to localStorage
-      const updated = { ...dailyLog, entries: [...dailyLog.entries, entry] }
-      setDailyLog(updated)
-      localStorage.setItem('dailyLog', JSON.stringify(updated))
-      toast.error('Logged locally.')
+      setDailyLog(updatedLog)
+      localStorage.setItem('dailyLog', JSON.stringify(updatedLog))
+      toast.success('Food logged locally!')
     } finally {
       setLoading(false)
     }
@@ -147,7 +199,7 @@ export const NutritionProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const removeFoodEntry = (index: number) => {
     setDailyLog(prev => {
       const entry = prev.entries[index]
-      return {
+      const updated = {
         ...prev,
         calories: prev.calories - entry.calories,
         protein: prev.protein - entry.protein,
@@ -155,19 +207,37 @@ export const NutritionProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         fat: prev.fat - entry.fat,
         entries: prev.entries.filter((_, i) => i !== index)
       }
+      
+      // Save to localStorage based on user type
+      if (user?.isGuest || user?.type === 'guest') {
+        localStorage.setItem('guestNutritionLog', JSON.stringify(updated))
+      } else {
+        localStorage.setItem('dailyLog', JSON.stringify(updated))
+      }
+      
+      return updated
     })
   }
 
   const generateMealPlan = async () => {
     try {
-      if (!user?.profile) {
-        throw new Error('User profile not found')
+      if (!user) {
+        throw new Error('User not found')
       }
+      
+      // Check if user has required profile fields
+      const requiredFields = ['height', 'weight', 'age', 'gender', 'activityLevel']
+      const missingFields = requiredFields.filter(field => !user[field as keyof typeof user])
+      
+      if (missingFields.length > 0) {
+        throw new Error(`Please complete your profile. Missing fields: ${missingFields.join(', ')}`)
+      }
+      
       const plan = await retry(() => generateWithGPT({
         type: 'meal_plan',
-        fitnessProfile: user.profile,
+        fitnessProfile: user,
         preferences: {
-          dietaryRestrictions: [],
+          dietaryRestrictions: user.dietaryPreferences || [],
           allergies: [],
           favoriteFoods: []
         }

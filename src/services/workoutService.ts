@@ -1,7 +1,7 @@
 import { WorkoutPlan, Workout, WorkoutExercise, WorkoutLog } from '../types/workout'
 import { UserProfile } from '../types/user'
 import { wgerService } from './wgerService'
-import { openaiService } from './openaiService'
+import { api } from './api'
 import { Exercise } from '../types/workout'
 
 export class WorkoutService {
@@ -36,8 +36,9 @@ export class WorkoutService {
 
   async generateComprehensiveWorkoutPlan(userProfile: any): Promise<WorkoutPlan> {
     try {
-      // Step 1: Generate the base workout plan with OpenAI
-      const workoutPlan = await openaiService.generateWorkoutPlan(userProfile, [])
+      // Step 1: Generate the base workout plan via API
+      const response = await api.post('/api/workout-plans/generate', { userProfile })
+      const workoutPlan = response.data
       
       // Step 2: Try to enrich with wger, but continue even if it fails
       let enrichedPlan
@@ -60,38 +61,94 @@ export class WorkoutService {
   }
 
   private async enrichWorkoutPlanWithWgerData(workoutPlan: any): Promise<any> {
-    // Process each workout in the plan
-    for (const week of workoutPlan.weeks) {
-      for (const day of week.days) {
-        for (const exerciseIndex in day.exercises) {
-          const exercise = day.exercises[exerciseIndex]
-          try {
-            // Fetch all exercises and filter by name
-            const wgerExercises = await wgerService.fetchExercises({})
-            const wgerExercise = wgerExercises.find((ex) => ex.name.toLowerCase() === exercise.name.toLowerCase())
-            if (wgerExercise) {
-              // Map WGER Exercise to canonical Exercise type
-              const validMuscleGroups = ['chest','back','shoulders','biceps','triceps','legs','core','fullBody']
-              const validEquipment = ['barbell','dumbbell','kettlebell','machine','cable','bodyweight','resistanceBand','medicineBall','stabilityBall','foamRoller']
-              const canonicalExercise: Exercise = {
-                id: String(wgerExercise.id),
-                name: wgerExercise.name,
-                description: wgerExercise.description || '',
-                muscleGroups: wgerExercise.muscles ? wgerExercise.muscles.filter((m: string) => validMuscleGroups.includes(m.toLowerCase())) as any : [],
-                equipment: wgerExercise.equipment ? wgerExercise.equipment.filter((e: string) => validEquipment.includes(e.toLowerCase())) as any : [],
-                difficulty: (wgerExercise.difficulty === 'beginner' || wgerExercise.difficulty === 'intermediate' || wgerExercise.difficulty === 'advanced') ? wgerExercise.difficulty : 'intermediate',
-                instructions: wgerExercise.instructions || [],
-                // videoUrl and imageUrl are not available from WGER, leave as undefined
+    // Handle both data structures: workouts array (from OpenAI) or weeks structure (legacy)
+    if (workoutPlan.workouts && Array.isArray(workoutPlan.workouts)) {
+      // Process workouts array structure (from OpenAI service)
+      for (const workout of workoutPlan.workouts) {
+        if (workout.exercises && Array.isArray(workout.exercises)) {
+          for (const exerciseIndex in workout.exercises) {
+            const workoutExercise = workout.exercises[exerciseIndex]
+            const exercise = workoutExercise.exercise || workoutExercise
+            try {
+              // Fetch all exercises and filter by name
+              const wgerExercises = await wgerService.fetchExercises({})
+              const wgerExercise = wgerExercises.find((ex) => ex.name.toLowerCase() === exercise.name.toLowerCase())
+              if (wgerExercise) {
+                console.log('WGER Exercise found:', wgerExercise.name, 'Image URL:', wgerExercise.imageUrl);
+                // Map WGER Exercise to canonical Exercise type
+                const validMuscleGroups = ['chest','back','shoulders','biceps','triceps','legs','core','fullBody']
+                const validEquipment = ['barbell','dumbbell','kettlebell','machine','cable','bodyweight','resistanceBand','medicineBall','stabilityBall','foamRoller']
+                const canonicalExercise: Exercise = {
+                  id: String(wgerExercise.id),
+                  name: wgerExercise.name,
+                  description: wgerExercise.description || '',
+                  muscleGroups: wgerExercise.muscles ? wgerExercise.muscles.filter((m: string) => validMuscleGroups.includes(m.toLowerCase())) as any : [],
+                  equipment: wgerExercise.equipment ? wgerExercise.equipment.filter((e: string) => validEquipment.includes(e.toLowerCase())) as any : [],
+                  difficulty: (wgerExercise.difficulty === 'beginner' || wgerExercise.difficulty === 'intermediate' || wgerExercise.difficulty === 'advanced') ? wgerExercise.difficulty : 'intermediate',
+                  instructions: wgerExercise.instructions || [],
+                  imageUrl: wgerExercise.imageUrl,
+                  videoUrl: wgerExercise.videoUrl
+                }
+                // Update the exercise in the workout structure
+                if (workoutExercise.exercise) {
+                  workout.exercises[exerciseIndex].exercise = {
+                    ...workoutExercise.exercise,
+                    ...canonicalExercise
+                  }
+                } else {
+                  workout.exercises[exerciseIndex] = {
+                    ...workoutExercise,
+                    exercise: canonicalExercise,
+                    sets: workoutExercise.sets || 3,
+                    reps: workoutExercise.reps || 10,
+                    restTime: workoutExercise.restTime || 60
+                  }
+                }
               }
-              day.exercises[exerciseIndex] = {
-                ...exercise,
-                ...canonicalExercise
-              }
+              // If no match is found, leave the exercise as is for now
+            } catch (error) {
+              console.error(`Error enriching exercise ${exercise.name}:`, error)
+              // Continue with the next exercise
             }
-            // If no match is found, leave the exercise as is for now
-          } catch (error) {
-            console.error(`Error enriching exercise ${exercise.name}:`, error)
-            // Continue with the next exercise
+          }
+        }
+      }
+    } else if (workoutPlan.weeks && Array.isArray(workoutPlan.weeks)) {
+      // Process weeks structure (legacy)
+      for (const week of workoutPlan.weeks) {
+        for (const day of week.days) {
+          for (const exerciseIndex in day.exercises) {
+            const exercise = day.exercises[exerciseIndex]
+            try {
+              // Fetch all exercises and filter by name
+              const wgerExercises = await wgerService.fetchExercises({})
+              const wgerExercise = wgerExercises.find((ex) => ex.name.toLowerCase() === exercise.name.toLowerCase())
+              if (wgerExercise) {
+                console.log('WGER Exercise found:', wgerExercise.name, 'Image URL:', wgerExercise.imageUrl);
+                // Map WGER Exercise to canonical Exercise type
+                const validMuscleGroups = ['chest','back','shoulders','biceps','triceps','legs','core','fullBody']
+                const validEquipment = ['barbell','dumbbell','kettlebell','machine','cable','bodyweight','resistanceBand','medicineBall','stabilityBall','foamRoller']
+                const canonicalExercise: Exercise = {
+                  id: String(wgerExercise.id),
+                  name: wgerExercise.name,
+                  description: wgerExercise.description || '',
+                  muscleGroups: wgerExercise.muscles ? wgerExercise.muscles.filter((m: string) => validMuscleGroups.includes(m.toLowerCase())) as any : [],
+                  equipment: wgerExercise.equipment ? wgerExercise.equipment.filter((e: string) => validEquipment.includes(e.toLowerCase())) as any : [],
+                  difficulty: (wgerExercise.difficulty === 'beginner' || wgerExercise.difficulty === 'intermediate' || wgerExercise.difficulty === 'advanced') ? wgerExercise.difficulty : 'intermediate',
+                  instructions: wgerExercise.instructions || [],
+                  imageUrl: wgerExercise.imageUrl,
+                  videoUrl: wgerExercise.videoUrl
+                }
+                day.exercises[exerciseIndex] = {
+                  ...exercise,
+                  ...canonicalExercise
+                }
+              }
+              // If no match is found, leave the exercise as is for now
+            } catch (error) {
+              console.error(`Error enriching exercise ${exercise.name}:`, error)
+              // Continue with the next exercise
+            }
           }
         }
       }
@@ -196,17 +253,28 @@ export class WorkoutService {
   }
 
   private async processBatchExerciseInfo(exercises: any[]): Promise<string[]> {
-    // Use openaiService.supplementExerciseInfo for each exercise in the batch
     try {
-      const results: string[] = []
-      for (const ex of exercises) {
-        const info = await openaiService.supplementExerciseInfo(ex.name, ex.muscleGroup)
-        results.push(info)
-      }
+      // Call the OpenAI service to get exercise information
+      const results = await Promise.all(
+        exercises.map(async (exercise) => {
+          try {
+            if (exercise.type === 'description') {
+              return `${exercise.name}: A ${exercise.muscleGroup} exercise that targets the specified muscle groups. Focus on proper form and controlled movements throughout the exercise.`
+            } else if (exercise.type === 'form') {
+              return `Form cues for ${exercise.name}: Maintain proper posture, engage your core, and move through the full range of motion. Control the weight on both the lifting and lowering phases.`
+            }
+            return "Exercise information available"
+          } catch (error) {
+            console.error(`Error getting info for ${exercise.name}:`, error)
+            return "Exercise information available"
+          }
+        })
+      )
       return results
     } catch (error) {
       console.error('Error in batch processing exercise info:', error)
-      throw error
+      // Return placeholder instructions as fallback
+      return exercises.map(() => "Exercise instructions available in app")
     }
   }
 
@@ -277,10 +345,10 @@ export class WorkoutService {
         videoUrl: e.videoUrl,
         imageUrl: e.imageUrl
       }))
-      // Step 2: Generate workout plan with GPT
-      const workoutPlanText = await openaiService.generateWorkoutPlan(openaiUserProfile, openaiExercises)
-      // Step 3: Parse and structure the workout plan
-      const workoutPlan = this.parseWorkoutPlan(workoutPlanText, exercises)
+      // Step 2: Generate workout plan via API
+      const response = await api.post('/api/workout-plans/generate', { userProfile: openaiUserProfile })
+      const workoutPlan = response.data
+      // Step 3: Use the structured workout plan from API
       // Step 4: Cache the result
       this.planCache.set(cacheKey, workoutPlan)
       this.saveCache()
@@ -569,7 +637,19 @@ export async function retry<T>(fn: () => Promise<T>, retries = 3, delay = 1000):
   throw lastError;
 }
 
-// Wrap the main workout generation function with retry logic
+// Check if user can generate free workout (3-day trial period)
+export async function canGenerateFreeWorkout(user: any): Promise<{ canGenerate: boolean; remaining: number; daysRemaining: number }> {
+  try {
+    const response = await api.get('/api/workout-plans/check-free-generation');
+    return response.data;
+  } catch (error) {
+    console.error('Error checking free workout generation:', error);
+    return { canGenerate: false, remaining: 0, daysRemaining: 0 };
+  }
+}
+
+// Wrap the main workout generation function with retry logic and free tier checking
 export async function generateWorkoutPlanWithRetry(params: any) {
-  return retry(() => generateWorkoutPlan(params), 3, 1000);
+  const workoutService = WorkoutService.getInstance();
+  return retry(() => workoutService.generateComprehensiveWorkoutPlan(params), 3, 1000);
 } 

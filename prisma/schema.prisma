@@ -38,9 +38,18 @@ model UserProfile {
   parqResponses     ParqResponse[]
   workoutPlans      WorkoutPlan[]
   parqAnswers       Json?
+  // Free workout trial tracking (7 days from first generation)
+  freeWorkoutTrialStartDate DateTime?
+  freeWorkoutTrialUsed Boolean @default(false)
   // 2FA fields for admin
   twoFactorSecret   String?
   twoFactorEnabled  Boolean  @default(false)
+  healthConditions  String?
+  injuryHistory     String?
+  equipmentAvailability String?
+  preferredWorkoutDuration String?
+  legalAcknowledgment Boolean @default(false)
+  mealPlans         MealPlan[]
   @@map("user_profiles")
 }
 
@@ -131,4 +140,15 @@ model WorkoutPlan {
   completed         Boolean @default(false)
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
+}
+
+model MealPlan {
+  id Int @id @default(autoincrement())
+  userId String
+  user UserProfile @relation(fields: [userId], references: [id])
+  dietType String
+  meals Json
+  shoppingList Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 } 

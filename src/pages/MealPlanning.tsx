@@ -14,7 +14,13 @@ const MealPlanning: React.FC = () => {
   const navigate = useNavigate()
 
   useEffect(() => {
-    if (!isProfileComplete(user)) {
+    // Redirect guests to registration - meal planning requires profile data
+    if (user && (user.isGuest || user.type === 'guest')) {
+      navigate('/register', { state: { from: '/meal-planning', message: 'Create a free account to access AI meal planning with your profile data.' } });
+      return;
+    }
+    // Redirect registered users without complete profiles to profile completion
+    if (user && !isProfileComplete(user)) {
       navigate('/profile', { state: { from: '/meal-planning', message: 'Please complete your profile to use AI meal planning.' } });
     }
   }, [user, navigate]);
@@ -31,11 +37,23 @@ const MealPlanning: React.FC = () => {
     }
   }
 
-  if (user && !user.profile) {
+  // Check if user has required profile fields for meal planning
+  const requiredFields = ['height', 'weight', 'age', 'gender', 'activityLevel']
+  const missingFields = user ? requiredFields.filter(field => !user[field as keyof typeof user]) : []
+  
+  if (user && missingFields.length > 0) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-black text-white">
-        <div className="text-center">
-          <div className="text-xl mb-4">Redirecting to fitness profile...</div>
+        <div className="text-center max-w-md mx-auto p-6 border border-blue-600 rounded-lg">
+          <div className="text-blue-400 text-xl mb-4">⚠️ Please complete your profile to use AI meal planning.</div>
+          <div className="text-white mb-4">Complete all required fields below to continue.</div>
+          <div className="text-gray-400 mb-4">Missing fields: {missingFields.join(', ')}</div>
+          <button 
+            onClick={() => navigate('/profile')}
+            className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700"
+          >
+            Complete Profile
+          </button>
         </div>
       </div>
     )

@@ -16,7 +16,7 @@ const ExerciseDetails: React.FC<ExerciseDetailsProps> = ({ exercise, onClose }) 
   useEffect(() => {
     const fetchWgerDetails = async () => {
       try {
-        const exercises = await wgerService.searchExercises(exercise.name)
+        const exercises = await wgerService.fetchExercises({})
         if (exercises.length > 0) {
           setWgerExercise(exercises[0] as WgerExercise)
         }

@@ -1,117 +1,48 @@
-import type { NextApiRequest, NextApiResponse } from 'next';
-import prisma from '../../lib/db';
-import jwt from 'jsonwebtoken';
-import { z } from 'zod';
+import { NextApiRequest, NextApiResponse } from 'next'
+import { api } from '../../services/api'
 
-const JWT_SECRET = process.env.JWT_SECRET;
-
-const REQUIRED_ENV_VARS = ['JWT_SECRET'];
-function checkEnvVars() {
-  const missing = REQUIRED_ENV_VARS.filter((v) => !process.env[v]);
-  if (missing.length > 0) {
-    return `Missing required environment variables: ${missing.join(', ')}. Please set them in your deployment environment.`;
-  }
-  return null;
-}
-
-// Zod schemas for validation
-const WorkoutPlanSchema = z.object({
-  name: z.string().min(1),
-  description: z.string().min(1),
-  duration: z.number().int().min(1),
-  workouts: z.any(), // You can make this stricter if you want
-  targetMuscleGroups: z.array(z.string()),
-  difficulty: z.string().min(1),
-  isDefault: z.boolean().optional(),
-  completed: z.boolean().optional(),
-});
-
-const UpdatePlanSchema = z.object({
-  id: z.string().min(1),
-  name: z.string().optional(),
-  description: z.string().optional(),
-  duration: z.number().int().optional(),
-  workouts: z.any().optional(),
-  targetMuscleGroups: z.array(z.string()).optional(),
-  difficulty: z.string().optional(),
-  isDefault: z.boolean().optional(),
-  completed: z.boolean().optional(),
-});
-
-function getUserIdFromAuth(req: NextApiRequest): string | null {
-  const auth = req.headers.authorization;
-  if (!auth || !auth.startsWith('Bearer ')) return null;
-  const token = auth.split(' ')[1];
-  try {
-    const payload = jwt.verify(token, JWT_SECRET!) as { userId: string };
-    return payload.userId;
-  } catch {
-    return null;
-  }
-}
-
+// This API route bridges frontend requests to the backend Express server
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  // Check for required env vars
-  const envError = checkEnvVars();
-  if (envError) {
-    return res.status(500).json({ message: envError });
-  }
-
-  // Authenticate user
-  const userId = getUserIdFromAuth(req);
-  if (!userId) return res.status(401).json({ message: 'Not authenticated' });
-
   try {
-    switch (req.method) {
-      case 'GET': {
-        // Fetch all plans for user
-        const plans = await prisma.workoutPlan.findMany({ where: { userId } });
-        return res.status(200).json(plans);
-      }
-      case 'POST': {
-        // Validate input
-        const parse = WorkoutPlanSchema.safeParse(req.body);
-        if (!parse.success) {
-          return res.status(400).json({ message: 'Invalid input', errors: parse.error.errors });
-        }
-        const { name, description, duration, workouts, targetMuscleGroups, difficulty, isDefault, completed } = parse.data;
-        const plan = await prisma.workoutPlan.create({
-          data: {
-            userId,
-            name,
-            description,
-            duration,
-            workouts,
-            targetMuscleGroups,
-            difficulty,
-            isDefault: !!isDefault,
-            completed: !!completed,
-          },
-        });
-        return res.status(201).json(plan);
-      }
-      case 'DELETE': {
-        const { id } = req.body;
-        if (!id) return res.status(400).json({ message: 'Missing plan id' });
-        await prisma.workoutPlan.delete({ where: { id } });
-        return res.status(204).end();
-      }
-      case 'PATCH': {
-        // Validate input
-        const parse = UpdatePlanSchema.safeParse(req.body);
-        if (!parse.success) {
-          return res.status(400).json({ message: 'Invalid input', errors: parse.error.errors });
-        }
-        const { id, ...updates } = parse.data;
-        if (!id) return res.status(400).json({ message: 'Missing plan id' });
-        const plan = await prisma.workoutPlan.update({ where: { id }, data: updates });
-        return res.status(200).json(plan);
-      }
-      default:
-        return res.status(405).json({ message: 'Method not allowed' });
+    // Get the authorization header from the request
+    const authHeader = req.headers.authorization
+    
+    if (!authHeader) {
+      return res.status(401).json({ error: 'Authorization header required' })
     }
+
+    // Configure the request to the backend
+    const backendConfig: any = {
+      method: req.method,
+      url: `${process.env.BACKEND_URL || 'http://localhost:3001'}/api/workout-plans${req.url?.includes('?') ? req.url.split('?')[1] : ''}`,
+      headers: {
+        'Authorization': authHeader,
+        'Content-Type': 'application/json'
+      }
+    }
+
+    // Add body for POST/PUT/PATCH requests
+    if (['POST', 'PUT', 'PATCH'].includes(req.method || '')) {
+      backendConfig.data = req.body
+    }
+
+    // Forward the request to the backend
+    const response = await api.request(backendConfig)
+    
+    // Return the backend response
+    res.status(response.status).json(response.data)
   } catch (error: any) {
-    console.error('API error:', error);
-    return res.status(500).json({ message: 'Internal server error', error: error.message });
+    console.error('API route error:', error)
+    
+    if (error.response) {
+      // Backend returned an error response
+      res.status(error.response.status).json(error.response.data)
+    } else {
+      // Network or other error
+      res.status(500).json({ 
+        error: 'Internal server error',
+        message: error.message 
+      })
+    }
   }
-} 
+}

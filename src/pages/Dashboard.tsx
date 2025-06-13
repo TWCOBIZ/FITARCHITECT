@@ -6,23 +6,17 @@ import FeatureCard from '../components/dashboard/FeatureCard'
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate()
-  const { user, isGuest } = useAuth()
+  const { user, isGuest, subscriptionTier } = useAuth()
   // @ts-ignore
   const trackEvent = (window as any).trackEvent || ((event: string, data?: any) => { if (typeof window !== 'undefined') console.log('[Analytics]', event, data) })
 
-  const [showUpgradeModal, setShowUpgradeModal] = useState(false)
+  // Debug logging
+  console.log('Dashboard Debug:', { user, isGuest, userType: user?.type, userIsGuest: user?.isGuest, subscriptionTier, featuresCount: dashboardFeatures.length })
 
-  // Helper to get the user's subscription tier as 'free' | 'basic' | 'premium'
-  const getSubscriptionTier = () => {
-    const plan = user?.subscription?.plan?.toLowerCase()
-    if (plan === 'basic' || plan === 'premium') return plan
-    return 'free'
-  }
-  const subscriptionTier = getSubscriptionTier()
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false)
 
   // Helper to determine if a feature is locked for the current user
   const isFeatureLocked = (feature: typeof dashboardFeatures[number]) => {
-    if (user?.email === 'nepacreativeagency@icloud.com') return false;
     // Guest logic
     if (isGuest && !feature.allowGuest) return true
     // Subscription logic
@@ -41,7 +35,6 @@ const Dashboard: React.FC = () => {
 
   // Helper to get lock reason
   const getLockReason = (feature: typeof dashboardFeatures[number]) => {
-    if (user?.email === 'nepacreativeagency@icloud.com') return undefined;
     if (isGuest && !feature.allowGuest) return 'Sign up to unlock this feature'
     if (feature.requiresSubscription) {
       if (feature.requiresSubscription === 'basic' && subscriptionTier === 'free') {
@@ -134,8 +127,17 @@ const Dashboard: React.FC = () => {
                     trackEvent('guest_feature_click', { feature: feature.title, allowed: !locked })
                   }
                   if (locked) {
-                    if (isGuest) trackEvent('guest_locked_feature_attempt', { feature: feature.title })
-                    if (lockReason && lockReason.toLowerCase().includes('upgrade')) setShowUpgradeModal(true)
+                    if (isGuest) {
+                      trackEvent('guest_locked_feature_attempt', { feature: feature.title })
+                      // For guests, navigate to register page for locked features
+                      navigate('/register')
+                      return
+                    }
+                    if (lockReason && lockReason.toLowerCase().includes('upgrade')) {
+                      setShowUpgradeModal(true)
+                      return
+                    }
+                    // For other locked features (like PAR-Q required), don't navigate
                     return
                   }
                   navigate(feature.path)

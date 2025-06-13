@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState } from 'react'
 
 interface OpenAIContextType {
   generateResponse: (prompt: string) => Promise<string>
+  generateMealPlan: (params: any) => Promise<any>
   isLoading: boolean
   error: string | null
 }
@@ -38,8 +39,36 @@ export const OpenAIProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   }
 
+  const generateMealPlan = async (params: any): Promise<any> => {
+    setIsLoading(true)
+    setError(null)
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch('/api/generate-meal-plan', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(params),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to generate meal plan')
+      }
+
+      const data = await response.json()
+      return data.mealPlan || data
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred')
+      throw err
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   return (
-    <OpenAIContext.Provider value={{ generateResponse, isLoading, error }}>
+    <OpenAIContext.Provider value={{ generateResponse, generateMealPlan, isLoading, error }}>
       {children}
     </OpenAIContext.Provider>
   )

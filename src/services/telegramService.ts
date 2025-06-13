@@ -1,5 +1,5 @@
 import { API_CONFIG } from '../config/api'
-import ErrorReportingService from './errorReportingService'
+import { ErrorReportingService } from './errorReportingService'
 
 interface TelegramConfig {
   chatId: string
@@ -229,7 +229,8 @@ Workout: ${workout}
 
 Don't forget to stay hydrated and warm up properly! 💪
     `
-    return this.sendMessage(message)
+    const result = await this.sendMessage(message)
+    return result.success
   }
 
   async sendNutritionTip(tip: string): Promise<boolean> {
@@ -239,7 +240,8 @@ ${tip}
 
 Stay on track with your fitness goals! 🌟
     `
-    return this.sendMessage(message)
+    const result = await this.sendMessage(message)
+    return result.success
   }
 
   async sendMotivationMessage(message: string): Promise<boolean> {
@@ -249,7 +251,8 @@ ${message}
 
 Keep pushing forward! 💫
     `
-    return this.sendMessage(formattedMessage)
+    const result = await this.sendMessage(formattedMessage)
+    return result.success
   }
 
   async sendProgressUpdate(progress: {
@@ -278,7 +281,8 @@ Keep pushing forward! 💫
       })
     }
 
-    return this.sendMessage(message)
+    const result = await this.sendMessage(message)
+    return result.success
   }
 }
 

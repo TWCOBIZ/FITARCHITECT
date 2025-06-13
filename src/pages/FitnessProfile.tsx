@@ -1,7 +1,6 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { useUser } from '../contexts/UserContext'
-import { User, UserProfile } from '../types/user'
+import { useAuth } from '../contexts/AuthContext'
 import { toast } from 'react-hot-toast'
 
 const FITNESS_GOALS = [
@@ -19,8 +18,8 @@ const FitnessProfile: React.FC = () => {
   const navigate = useNavigate()
   const location = useLocation()
   const from = location.state?.from || '/dashboard'
-  const { updateProfile } = useUser()
-  const [formData, setFormData] = React.useState<Partial<UserProfile>>({
+  const { updateProfile } = useAuth()
+  const [formData, setFormData] = React.useState<any>({
     height: undefined,
     weight: undefined,
     age: undefined,
@@ -39,7 +38,8 @@ const FitnessProfile: React.FC = () => {
   const [heightInches, setHeightInches] = useState('6')
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value, type, checked } = e.target
+    const { name, value, type } = e.target
+    const checked = (e.target as HTMLInputElement).checked
     if (name === 'goals') {
       setFormData(prev => ({
         ...prev,
@@ -58,14 +58,14 @@ const FitnessProfile: React.FC = () => {
     setHeightFeet(feet)
     setHeightInches(inches)
     const totalInches = parseInt(feet || '0', 10) * 12 + parseInt(inches || '0', 10)
-    setFormData(prev => ({ ...prev, height: totalInches ? String(totalInches) : '' }))
+    setFormData(prev => ({ ...prev, height: totalInches || 0 }))
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
     try {
-      updateProfile({ profile: formData })
+      updateProfile(formData)
       toast.success('Profile updated successfully!')
       navigate(from)
     } catch (error) {
@@ -77,13 +77,13 @@ const FitnessProfile: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-black py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-3xl mx-auto">
         <div className="text-center">
-          <h2 className="text-3xl font-extrabold text-gray-900">
+          <h2 className="text-3xl font-extrabold text-white">
             Your Fitness Profile
           </h2>
-          <p className="mt-2 text-sm text-gray-600">
+          <p className="mt-2 text-sm text-gray-400">
             Tell us about yourself to get personalized recommendations
           </p>
         </div>
@@ -91,7 +91,7 @@ const FitnessProfile: React.FC = () => {
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
             <div>
-              <label htmlFor="height" className="block text-sm font-medium text-gray-700">
+              <label htmlFor="height" className="block text-sm font-medium text-gray-400">
                 Height
               </label>
               <div className="flex gap-2">

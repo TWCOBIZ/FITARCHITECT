@@ -93,7 +93,7 @@ const WorkoutProfileForm: React.FC<WorkoutProfileFormProps> = ({ onSubmit, onBac
     setHeightFeet(feet)
     setHeightInches(inches)
     const totalInches = parseInt(feet || '0', 10) * 12 + parseInt(inches || '0', 10)
-    setFormData(prev => ({ ...prev, height: totalInches ? String(totalInches) : '' }))
+    setFormData(prev => ({ ...prev, height: totalInches || 0 }))
   }
 
   const validateForm = () => {
@@ -119,10 +119,7 @@ const WorkoutProfileForm: React.FC<WorkoutProfileFormProps> = ({ onSubmit, onBac
     }
     setIsLoading(true)
     try {
-      const maybePromise = onSubmit(formData)
-      if (maybePromise && typeof maybePromise.then === 'function') {
-        await maybePromise
-      }
+      await onSubmit(formData)
       setSuccess('Profile created successfully!')
       setFormData({
         fitnessLevel: 'beginner',

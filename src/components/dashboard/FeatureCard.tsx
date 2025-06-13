@@ -20,10 +20,10 @@ const FeatureCard: React.FC<FeatureCardProps> = ({
   return (
     <div
       className={`bg-black border border-gray-800 rounded-xl p-6 transition-colors cursor-pointer text-white relative ${
-        locked ? 'opacity-50 pointer-events-none' : 'hover:bg-gray-900'
+        locked ? 'opacity-75' : 'hover:bg-gray-900'
       }`}
-      onClick={locked ? undefined : onClick}
-      tabIndex={locked ? -1 : 0}
+      onClick={onClick}
+      tabIndex={0}
       aria-disabled={locked}
     >
       <div className="text-4xl mb-4">{icon}</div>

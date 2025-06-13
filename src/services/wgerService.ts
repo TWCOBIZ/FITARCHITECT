@@ -10,6 +10,8 @@ export interface Exercise {
   description?: string
   difficulty?: string
   instructions?: string[]
+  imageUrl?: string
+  videoUrl?: string
 }
 
 export interface WgerExercise {
@@ -64,35 +66,83 @@ interface RawWgerExercise {
   description?: string;
   difficulty?: string;
   instructions?: string;
+  images?: {
+    id: number;
+    image: string;
+    is_main: boolean;
+  }[];
 }
 
 const FALLBACK_EXERCISES: Exercise[] = [
   {
     id: 1,
     name: 'Push-ups',
-    muscles: ['chest', 'triceps'],
+    muscles: ['chest', 'triceps', 'shoulders'],
     equipment: ['bodyweight'],
-    description: 'A bodyweight exercise for chest and triceps.',
+    description: 'A classic bodyweight exercise that targets the chest, triceps, and shoulders. Great for building upper body strength.',
     difficulty: 'beginner',
-    instructions: ['Start in a plank position', 'Lower your body', 'Push back up']
+    instructions: [
+      'Start in a plank position with hands slightly wider than shoulders',
+      'Lower your body until your chest nearly touches the floor',
+      'Push back up to the starting position',
+      'Keep your core tight and body in a straight line'
+    ]
   },
   {
     id: 2,
     name: 'Squats',
-    muscles: ['legs'],
+    muscles: ['quadriceps', 'glutes', 'hamstrings'],
     equipment: ['bodyweight'],
-    description: 'A bodyweight exercise for legs.',
+    description: 'A fundamental lower body exercise that targets the quadriceps, glutes, and hamstrings. Builds leg strength and mobility.',
     difficulty: 'beginner',
-    instructions: ['Stand with feet shoulder-width apart', 'Lower hips', 'Return to standing']
+    instructions: [
+      'Stand with feet shoulder-width apart, toes slightly pointed out',
+      'Lower your hips back and down as if sitting in a chair',
+      'Keep your chest up and knees tracking over your toes',
+      'Return to standing by driving through your heels'
+    ]
   },
   {
     id: 3,
     name: 'Plank',
-    muscles: ['core'],
+    muscles: ['core', 'shoulders', 'back'],
     equipment: ['bodyweight'],
-    description: 'A core stability exercise.',
+    description: 'An isometric core exercise that builds stability and strength throughout the entire core and shoulders.',
     difficulty: 'beginner',
-    instructions: ['Hold a plank position on elbows and toes']
+    instructions: [
+      'Start in a push-up position on your forearms',
+      'Keep your body in a straight line from head to heels',
+      'Engage your core and avoid letting your hips sag',
+      'Hold the position while breathing normally'
+    ]
+  },
+  {
+    id: 4,
+    name: 'Lunges',
+    muscles: ['quadriceps', 'glutes', 'hamstrings'],
+    equipment: ['bodyweight'],
+    description: 'A unilateral leg exercise that improves balance, coordination, and leg strength.',
+    difficulty: 'beginner',
+    instructions: [
+      'Stand tall with feet hip-width apart',
+      'Step forward with one leg and lower your hips',
+      'Lower until both knees are bent at 90 degrees',
+      'Push back to starting position and repeat'
+    ]
+  },
+  {
+    id: 5,
+    name: 'Dumbbell Rows',
+    muscles: ['back', 'biceps', 'rear deltoids'],
+    equipment: ['dumbbell'],
+    description: 'A pulling exercise that targets the back muscles and biceps, helping to improve posture and upper body strength.',
+    difficulty: 'intermediate',
+    instructions: [
+      'Hold a dumbbell in one hand, place other hand on bench',
+      'Keep your back straight and parallel to the floor',
+      'Pull the dumbbell up to your ribcage',
+      'Lower with control and repeat'
+    ]
   }
 ];
 
@@ -106,32 +156,67 @@ export class WGERService {
     language?: number
   }): Promise<Exercise[]> {
     try {
+      // First, fetch the basic exercise data
       const response = await axios.get(`${this.BASE_URL}/exercise/`, {
         params: {
           ...filters,
           language: filters.language || 2, // Default to English
           limit: 50 // Reasonable limit to prevent over-fetching
         },
-        headers: {
-          'Authorization': `Token ${this.API_KEY}`
-        }
+        headers: this.API_KEY ? { 'Authorization': `Token ${this.API_KEY}` } : {}
       })
-      return response.data.results.map(this.transformExercise)
+      
+      console.log('WGER API Response sample:', response.data.results[0]);
+      
+      // Transform exercises and fetch images for each
+      const exercises = await Promise.all(
+        response.data.results.map(async (rawExercise: any) => {
+          const transformedExercise = this.transformExercise(rawExercise);
+          
+          // Fetch images for this exercise if available
+          if (rawExercise.exercise_base) {
+            try {
+              const imageResponse = await axios.get(`${this.BASE_URL}/exerciseimage/`, {
+                params: {
+                  exercise_base: rawExercise.exercise_base,
+                  limit: 5
+                },
+                headers: this.API_KEY ? { 'Authorization': `Token ${this.API_KEY}` } : {}
+              });
+              
+              if (imageResponse.data.results.length > 0) {
+                // Get the main image or first available image
+                const mainImage = imageResponse.data.results.find((img: any) => img.is_main) || imageResponse.data.results[0];
+                transformedExercise.imageUrl = `https://wger.de${mainImage.image}`;
+                console.log('Found image for', transformedExercise.name, ':', transformedExercise.imageUrl);
+              }
+            } catch (imageError) {
+              console.log('No images found for exercise:', transformedExercise.name);
+            }
+          }
+          
+          return transformedExercise;
+        })
+      );
+      
+      console.log('Transformed exercise sample with images:', exercises[0]);
+      return exercises;
     } catch (error) {
       console.error('WGER API Error, using fallback exercises:', error)
       return FALLBACK_EXERCISES
     }
   }
 
-  private transformExercise(rawExercise: RawWgerExercise): Exercise {
+  private transformExercise(rawExercise: any): Exercise {
     return {
       id: rawExercise.id,
       name: rawExercise.name,
-      muscles: rawExercise.muscles.map((m) => m.name),
-      equipment: rawExercise.equipment.map((e) => e.name),
-      description: rawExercise.description,
+      muscles: rawExercise.muscles || [],
+      equipment: rawExercise.equipment || [],
+      description: rawExercise.description || '',
       difficulty: rawExercise.difficulty || 'intermediate',
-      instructions: rawExercise.instructions ? [rawExercise.instructions] : []
+      instructions: rawExercise.instructions ? [rawExercise.instructions] : [],
+      imageUrl: undefined // Will be populated separately by fetchExercises
     }
   }
 

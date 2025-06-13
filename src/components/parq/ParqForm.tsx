@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { useUser } from '../../contexts/UserContext'
-import { User, UserProfile } from '../../types/user'
+import { useNavigate, useLocation } from 'react-router-dom'
+import { useAuth } from '../../contexts/AuthContext'
 import { motion } from 'framer-motion'
 import { workoutService } from '../../services/workoutService'
 import { useWorkout } from '../../contexts/WorkoutContext'
@@ -48,12 +47,18 @@ const PARQ_QUESTIONS: ParqQuestion[] = [
     id: 7,
     question: "Do you know of any other reason why you should not do physical activity?",
     description: "This includes any medical conditions or concerns not mentioned above."
+  },
+  {
+    id: 8,
+    question: "Are you currently pregnant or have you given birth within the last 6 months?",
+    description: "Pregnancy and postpartum recovery require special exercise considerations."
   }
 ]
 
 export const ParqForm: React.FC = () => {
   const navigate = useNavigate()
-  const { updateParqStatus, user, subscriptionTier, updateProfile } = useUser()
+  const location = useLocation()
+  const { updateParqStatus, user, subscriptionTier, updateProfile } = useAuth()
   const { setCurrentPlan } = useWorkout()
   const [answers, setAnswers] = useState<Record<number, boolean>>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -63,17 +68,25 @@ export const ParqForm: React.FC = () => {
   const [adminNotes, setAdminNotes] = useState<string[]>([])
 
   useEffect(() => {
-    // Fetch previous answers if they exist
-    api.get('/api/parq-response')
-      .then(res => {
-        if (res.data && res.data.answers) {
-          setPreviousAnswers(res.data.answers)
-          setAnswers(res.data.answers)
-          setAdminNotes(res.data.notes || [])
-        }
-      })
-      .catch(() => {})
-  }, [])
+    // Fetch previous answers if they exist (only for registered users)
+    if (!user?.isGuest && user?.type !== 'guest') {
+      api.get('/api/parq-response')
+        .then(res => {
+          if (res.data && res.data.answers) {
+            setPreviousAnswers(res.data.answers)
+            setAnswers(res.data.answers)
+            setAdminNotes(res.data.notes || [])
+          }
+        })
+        .catch(() => {})
+    } else {
+      // For guests, check if they have saved answers in their profile
+      if (user?.profile?.parqAnswers) {
+        setPreviousAnswers(user.profile.parqAnswers)
+        setAnswers(user.profile.parqAnswers)
+      }
+    }
+  }, [user])
 
   const handleAnswer = (questionId: number, answer: boolean) => {
     setAnswers(prev => ({
@@ -96,38 +109,65 @@ export const ParqForm: React.FC = () => {
       return
     }
 
-    // Special logic: allow test user to always submit, even if answers are 'Yes'
-    const isTestUser = user && user.email === 'nepacreativeagency@icloud.com';
+    // Check for 'Yes' answers - these require manual review
     const hasYesAnswers = Object.values(answers).some(answer => answer === true)
-    if (hasYesAnswers && !isTestUser) {
+    if (hasYesAnswers) {
       setShowWarning(true)
       setIsSubmitting(false)
       return
     }
 
     try {
-      await api.patch('/api/parq-response', { answers })
+      // For registered users, save to backend
+      if (!user?.isGuest && user?.type !== 'guest') {
+        await api.patch('/api/parq-response', { answers })
+      }
+      
+      // For all users (including guests), update local state
       updateParqStatus(true)
       updateProfile({ parqAnswers: answers })
 
+      // Check if user came from workout page and redirect back there
+      const fromPath = location.state?.from;
+      if (fromPath === '/workout') {
+        navigate('/workout');
+        return;
+      }
+
       // Only auto-generate workout plan and route to workout-plans for paid users
-      if (user && user.profile && (subscriptionTier === 'basic' || subscriptionTier === 'premium')) {
+      if (user && (subscriptionTier === 'basic' || subscriptionTier === 'premium')) {
         try {
-          // Efficient plan generation: fetch exercises from WGER, use GPT only for missing info
-          const plan = await workoutService.generateWorkoutPlan(user.profile)
+          // Use user profile data for workout generation
+          const profileData = user.profile ? {
+            height: user.profile.height || 170,
+            weight: user.profile.weight || 70,
+            age: user.profile.dateOfBirth ? new Date().getFullYear() - new Date(user.profile.dateOfBirth).getFullYear() : 30,
+            gender: user.profile.gender || 'other',
+            fitnessGoals: user.profile.goals || [],
+            activityLevel: user.profile.fitnessLevel || 'beginner',
+            dietaryPreferences: []
+          } : {
+            height: 170,
+            weight: 70,
+            age: 30,
+            gender: 'other',
+            fitnessGoals: [],
+            activityLevel: 'beginner',
+            dietaryPreferences: []
+          }
+          
+          const plan = await workoutService.generateWorkoutPlan(profileData)
           setCurrentPlan(plan)
-          navigate('/workout-plans')
+          navigate('/workout')
           return
         } catch (err) {
-          // Optionally handle error (show message, etc.)
           console.error('Failed to auto-generate workout plan:', err)
-          // Fallback: route to dashboard
           navigate('/dashboard')
           return
         }
       }
-      // For guests and free users, go to dashboard
-      navigate('/dashboard')
+      // For guests and free users, go to dashboard (or back to where they came from)
+      navigate(fromPath || '/dashboard')
     } catch {
       setError('Failed to submit PAR-Q.')
     } finally {

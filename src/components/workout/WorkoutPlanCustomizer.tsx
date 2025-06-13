@@ -19,9 +19,9 @@ const WorkoutPlanCustomizer: React.FC<WorkoutPlanCustomizerProps> = ({
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedMuscleGroup, setSelectedMuscleGroup] = useState<string>('')
   const [isSearching, setIsSearching] = useState(false)
-  const [name, setName] = useState(plan.title || plan.name || '')
+  const [name, setName] = useState(plan.name || '')
   const [description, setDescription] = useState(plan.description || '')
-  const [duration, setDuration] = useState(plan.weeks || plan.duration || 3)
+  const [duration, setDuration] = useState(plan.duration || 3)
   const [daysPerWeek, setDaysPerWeek] = useState(3)
 
   useEffect(() => {
@@ -29,7 +29,7 @@ const WorkoutPlanCustomizer: React.FC<WorkoutPlanCustomizerProps> = ({
       if (searchQuery || selectedMuscleGroup) {
         setIsSearching(true)
         try {
-          const exercises = await wgerService.searchExercises(searchQuery, selectedMuscleGroup)
+          const exercises = await wgerService.fetchExercises({})
           setAvailableExercises(exercises)
         } catch (error) {
           console.error('Error fetching exercises:', error)
@@ -113,7 +113,6 @@ const WorkoutPlanCustomizer: React.FC<WorkoutPlanCustomizerProps> = ({
       name,
       description,
       duration,
-      daysPerWeek,
       workouts: editedPlan.workouts
     })
   }
@@ -179,7 +178,7 @@ const WorkoutPlanCustomizer: React.FC<WorkoutPlanCustomizerProps> = ({
             />
           </div>
 
-          {editedPlan.workouts.map((workout, workoutIndex) => (
+          {editedPlan.workouts && editedPlan.workouts.map((workout, workoutIndex) => (
             <motion.div
               key={workout.id}
               initial={{ opacity: 0, y: 20 }}
@@ -219,9 +218,30 @@ const WorkoutPlanCustomizer: React.FC<WorkoutPlanCustomizerProps> = ({
                     className="bg-white rounded-lg p-4 flex items-center justify-between"
                   >
                     <div className="flex-1 flex items-center gap-4">
-                      {workoutExercise.exercise.imageUrl && (
-                        <img src={workoutExercise.exercise.imageUrl} alt={workoutExercise.exercise.name} className="w-12 h-12 object-cover rounded" />
-                      )}
+                      <div className="relative w-12 h-12 rounded overflow-hidden bg-gray-200">
+                        {/* Exercise type placeholder */}
+                        <div className="absolute inset-0 bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center">
+                          <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                          </svg>
+                        </div>
+                        {/* Real image overlay */}
+                        {workoutExercise.exercise.imageUrl && (
+                          <img 
+                            src={workoutExercise.exercise.imageUrl} 
+                            alt={workoutExercise.exercise.name} 
+                            className="absolute inset-0 w-full h-full object-cover opacity-0 transition-opacity duration-300"
+                            onLoad={(e) => {
+                              const target = e.target as HTMLImageElement;
+                              target.style.opacity = '1';
+                            }}
+                            onError={(e) => {
+                              const target = e.target as HTMLImageElement;
+                              target.style.display = 'none';
+                            }}
+                          />
+                        )}
+                      </div>
                       <div>
                         <h4 className="font-medium text-gray-900">{workoutExercise.exercise.name}</h4>
                         <div className="flex space-x-4 mt-2">
@@ -300,7 +320,7 @@ const WorkoutPlanCustomizer: React.FC<WorkoutPlanCustomizerProps> = ({
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {availableExercises.map(exercise => (
+                      {availableExercises && availableExercises.map(exercise => (
                         <div
                           key={exercise.id}
                           className="bg-white rounded-lg p-4 border hover:border-blue-500 cursor-pointer"
@@ -309,7 +329,7 @@ const WorkoutPlanCustomizer: React.FC<WorkoutPlanCustomizerProps> = ({
                           <h4 className="font-medium text-gray-900">{exercise.name}</h4>
                           <p className="text-sm text-gray-600 mt-1">{exercise.description}</p>
                           <div className="flex flex-wrap gap-2 mt-2">
-                            {exercise.muscleGroups.map(muscle => (
+                            {exercise.muscleGroups && exercise.muscleGroups.map(muscle => (
                               <span
                                 key={muscle}
                                 className="px-2 py-1 bg-gray-100 text-gray-700 rounded-full text-xs"

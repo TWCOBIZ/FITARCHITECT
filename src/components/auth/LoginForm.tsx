@@ -85,6 +85,7 @@ export const LoginForm: React.FC = () => {
               value={formData.email}
               onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
               error={validationErrors.email}
+              autoComplete="email"
               required
             />
             <FormInput
@@ -93,6 +94,7 @@ export const LoginForm: React.FC = () => {
               value={formData.password}
               onChange={(e) => setFormData(prev => ({ ...prev, password: e.target.value }))}
               error={validationErrors.password}
+              autoComplete="current-password"
               required
             />
           </div>

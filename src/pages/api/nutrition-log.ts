@@ -1,39 +1,48 @@
-import { getSession } from 'next-auth/client';
-import { db } from '../../lib/db';
+import { NextApiRequest, NextApiResponse } from 'next'
+import { api } from '../../services/api'
 
-export default async function handler(req, res) {
-  const session = await getSession({ req });
-  if (!session) return res.status(401).json({ error: 'Unauthorized' });
-  const userId = session.user.id;
+// This API route bridges frontend requests to the backend Express server
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  try {
+    // Get the authorization header from the request
+    const authHeader = req.headers.authorization
+    
+    if (!authHeader) {
+      return res.status(401).json({ error: 'Authorization header required' })
+    }
 
-  switch (req.method) {
-    case 'GET': {
-      // Fetch all logs for user
-      const logs = await db.nutritionLog.findMany({ where: { userId } });
-      return res.status(200).json(logs);
+    // Configure the request to the backend
+    const backendConfig: any = {
+      method: req.method,
+      url: `${process.env.BACKEND_URL || 'http://localhost:3001'}/api/nutrition-log${req.url?.includes('?') ? '?' + req.url.split('?')[1] : ''}`,
+      headers: {
+        'Authorization': authHeader,
+        'Content-Type': 'application/json'
+      }
     }
-    case 'POST': {
-      // Validate and save new log
-      const { date, foods, calories, macros, notes } = req.body;
-      if (!date || !foods || !Array.isArray(foods)) return res.status(400).json({ error: 'Invalid input' });
-      const log = await db.nutritionLog.create({ data: { userId, date, foods, calories, macros, notes } });
-      return res.status(201).json(log);
+
+    // Add body for POST/PUT/PATCH/DELETE requests
+    if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method || '')) {
+      backendConfig.data = req.body
     }
-    case 'PUT': {
-      // Update existing log
-      const { id, ...update } = req.body;
-      if (!id) return res.status(400).json({ error: 'Missing log id' });
-      const log = await db.nutritionLog.update({ where: { id, userId }, data: update });
-      return res.status(200).json(log);
+
+    // Forward the request to the backend
+    const response = await api.request(backendConfig)
+    
+    // Return the backend response
+    res.status(response.status).json(response.data)
+  } catch (error: any) {
+    console.error('Nutrition API route error:', error)
+    
+    if (error.response) {
+      // Backend returned an error response
+      res.status(error.response.status).json(error.response.data)
+    } else {
+      // Network or other error
+      res.status(500).json({ 
+        error: 'Internal server error',
+        message: error.message 
+      })
     }
-    case 'DELETE': {
-      // Delete log
-      const { id } = req.body;
-      if (!id) return res.status(400).json({ error: 'Missing log id' });
-      await db.nutritionLog.delete({ where: { id, userId } });
-      return res.status(204).end();
-    }
-    default:
-      return res.status(405).json({ error: 'Method not allowed' });
   }
-} 
+}

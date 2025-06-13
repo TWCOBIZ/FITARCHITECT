@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react'
+import { toast } from 'react-hot-toast'
 import { motion, AnimatePresence } from 'framer-motion'
 import { WorkoutPlan, WorkoutLog } from '../../types/workout'
 import { workoutService } from '../../services/workoutService'
 import { UserProfile } from '../../types/user'
 import ExerciseCard from './ExerciseCard'
+import ConfirmationModal from '../common/ConfirmationModal'
 
 interface WorkoutPlanViewProps {
   userProfile: UserProfile
@@ -17,6 +19,8 @@ const WorkoutPlanView: React.FC<WorkoutPlanViewProps> = ({ userProfile }) => {
   const [workoutRating, setWorkoutRating] = useState(0)
   const [showTips, setShowTips] = useState(false)
   const [selectedWeek, setSelectedWeek] = useState(0)
+  const [showEndPlanModal, setShowEndPlanModal] = useState(false)
+  const [isEndingPlan, setIsEndingPlan] = useState(false)
 
   useEffect(() => {
     const plan = workoutService.getCurrentPlan()
@@ -30,16 +34,31 @@ const WorkoutPlanView: React.FC<WorkoutPlanViewProps> = ({ userProfile }) => {
       setCurrentPlan(plan)
     } catch (error) {
       console.error('Error generating plan:', error)
-      alert('Failed to generate workout plan. Please try again.')
+      toast.error('Failed to generate workout plan. Please check your connection and try again.')
     }
     setIsGenerating(false)
   }
 
-  const handleEndPlan = () => {
-    if (window.confirm('Are you sure you want to end this workout plan?')) {
+  const handleEndPlanClick = () => {
+    setShowEndPlanModal(true)
+  }
+
+  const handleEndPlanConfirm = async () => {
+    setIsEndingPlan(true)
+    try {
       workoutService.endCurrentPlan()
       setCurrentPlan(null)
+      toast.success('Workout plan ended successfully')
+    } catch (error) {
+      toast.error('Failed to end workout plan')
+    } finally {
+      setIsEndingPlan(false)
+      setShowEndPlanModal(false)
     }
+  }
+
+  const handleEndPlanCancel = () => {
+    setShowEndPlanModal(false)
   }
 
   const handleCompleteWorkout = (workoutId: string) => {
@@ -48,9 +67,9 @@ const WorkoutPlanView: React.FC<WorkoutPlanViewProps> = ({ userProfile }) => {
 
     const exercises = workout.exercises.map(ex => ({
       exerciseId: ex.exercise.id,
-      sets: ex.sets.map(set => ({
-        reps: set.reps,
-        weight: set.weight,
+      sets: Array.from({ length: ex.sets }, () => ({
+        reps: ex.reps,
+        weight: ex.weight || 0,
         completed: true
       }))
     }))
@@ -102,7 +121,7 @@ const WorkoutPlanView: React.FC<WorkoutPlanViewProps> = ({ userProfile }) => {
       <div className="flex justify-between items-center mb-8">
         <h2 className="text-2xl font-bold">Your Workout Plan</h2>
         <button
-          onClick={handleEndPlan}
+          onClick={handleEndPlanClick}
           className="px-4 py-2 text-red-600 hover:text-red-700"
         >
           End Plan
@@ -114,31 +133,35 @@ const WorkoutPlanView: React.FC<WorkoutPlanViewProps> = ({ userProfile }) => {
         <p className="text-gray-600">{currentPlan.description}</p>
       </div>
 
-      {currentPlan.weeks && currentPlan.weeks.length > 0 && (
+      {currentPlan.workouts && currentPlan.workouts.length > 0 && (
         <div className="flex gap-2 mb-4">
-          {currentPlan.weeks.map((w, i) => (
+          {currentPlan.workouts.map((workout, i) => (
             <button
               key={i}
               className={`px-3 py-1 rounded ${selectedWeek === i ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}`}
               onClick={() => setSelectedWeek(i)}
             >
-              Week {w.week || i + 1}
+              {workout.name}
             </button>
           ))}
         </div>
       )}
 
-      {currentPlan.weeks && currentPlan.weeks[selectedWeek]?.days.map(day => (
-        <div key={day.day} className="mb-6">
-          <h4 className="font-semibold mb-2">Day {day.day}</h4>
-          {day.exercises.map((ex, idx) => (
-            <ExerciseCard key={idx} exercise={ex} />
+      {currentPlan.workouts && currentPlan.workouts[selectedWeek] && (
+        <div className="mb-6">
+          <h4 className="font-semibold mb-2">{currentPlan.workouts[selectedWeek].name}</h4>
+          <p className="text-gray-600 mb-4">{currentPlan.workouts[selectedWeek].description}</p>
+          {currentPlan.workouts[selectedWeek].exercises.map((workoutExercise, idx) => (
+            <div key={idx} className="mb-4 p-4 border border-gray-200 rounded">
+              <h5 className="font-medium">{workoutExercise.exercise.name}</h5>
+              <p className="text-sm text-gray-600">{workoutExercise.sets} sets × {workoutExercise.reps} reps</p>
+              <p className="text-sm text-gray-600">Rest: {workoutExercise.restTime} seconds</p>
+              {workoutExercise.weight && <p className="text-sm text-gray-600">Weight: {workoutExercise.weight} kg</p>}
+              {workoutExercise.notes && <p className="text-sm text-gray-500">{workoutExercise.notes}</p>}
+            </div>
           ))}
-          {day.exercises.some(ex => ex.progression) && (
-            <div className="mt-2 text-sm text-blue-700">Progression: {day.exercises.map(ex => ex.progression).filter(Boolean).join('; ')}</div>
-          )}
         </div>
-      ))}
+      )}
 
       <div className="space-y-6">
         {currentPlan.workouts.map(workout => (
@@ -246,6 +269,19 @@ const WorkoutPlanView: React.FC<WorkoutPlanViewProps> = ({ userProfile }) => {
           </div>
         </div>
       </div>
+
+      {/* End Plan Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={showEndPlanModal}
+        onClose={handleEndPlanCancel}
+        onConfirm={handleEndPlanConfirm}
+        title="End Workout Plan"
+        message="Are you sure you want to end this workout plan? Your progress will be saved, but you'll need to generate a new plan to continue."
+        confirmText="End Plan"
+        cancelText="Keep Plan"
+        type="warning"
+        isLoading={isEndingPlan}
+      />
     </div>
   )
 }

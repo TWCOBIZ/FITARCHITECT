@@ -37,7 +37,7 @@ export const dashboardFeatures: DashboardFeature[] = [
     description: 'Plan your meals for the week',
     icon: '🍽️',
     path: '/meal-planning',
-    allowGuest: true,
+    allowGuest: false,
   },
   {
     key: 'foodscan',
@@ -54,7 +54,7 @@ export const dashboardFeatures: DashboardFeature[] = [
     description: 'Get reminders and updates via Telegram',
     icon: '📲',
     path: '/settings/notifications',
-    requiresSubscription: 'basic',
+    requiresSubscription: 'premium',
     allowGuest: false,
   },
   {
@@ -63,8 +63,7 @@ export const dashboardFeatures: DashboardFeature[] = [
     description: 'Track your fitness and nutrition progress',
     icon: '📊',
     path: '/analytics',
-    requiresSubscription: 'premium',
-    allowGuest: false,
+    allowGuest: true,
   },
   {
     key: 'profile',

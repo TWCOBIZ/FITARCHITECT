@@ -18,7 +18,7 @@ const Breadcrumbs: React.FC = () => {
   const location = useLocation();
   const path = location.pathname.replace(/^\/admin\/dashboard\/?/, '');
   const segments = path.split('/').filter(Boolean);
-  const crumbs = ['dashboard', ...segments];
+  // const crumbs = ['dashboard', ...segments];
 
   return (
     <nav className="text-sm text-gray-400 py-2 px-8" aria-label="Breadcrumb">

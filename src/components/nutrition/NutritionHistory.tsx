@@ -1,5 +1,9 @@
 import React, { useEffect, useState } from 'react';
+import { toast } from 'react-hot-toast';
 import { FoodEntry } from '../../types/nutrition';
+import { useAuth } from '../../contexts/AuthContext';
+import { useNutrition } from '../../contexts/NutritionContext';
+import ConfirmationModal from '../common/ConfirmationModal';
 
 interface NutritionLog {
   id: string;
@@ -40,10 +44,11 @@ function EditNutritionLogModal({ log, onClose, onSave }: EditNutritionLogModalPr
     });
     setLoading(false);
     if (res.ok) {
+      toast.success('Nutrition log updated successfully!');
       onSave();
       onClose();
     } else {
-      alert('Failed to update log');
+      toast.error('Failed to update nutrition log. Please try again.');
     }
   };
 
@@ -74,12 +79,49 @@ function EditNutritionLogModal({ log, onClose, onSave }: EditNutritionLogModalPr
 }
 
 export default function NutritionHistory() {
+  const { user } = useAuth();
+  const { dailyLog } = useNutrition();
   const [logs, setLogs] = useState<NutritionLog[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [editingLog, setEditingLog] = useState<NutritionLog | null>(null);
+  const [deleteConfirmModal, setDeleteConfirmModal] = useState<{isOpen: boolean, logId: string | null}>({
+    isOpen: false,
+    logId: null
+  });
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const fetchLogs = () => {
+    // For guests, use localStorage data
+    if (user?.isGuest || user?.type === 'guest') {
+      const guestLog = localStorage.getItem('guestNutritionLog');
+      if (guestLog) {
+        try {
+          const parsed = JSON.parse(guestLog);
+          // Convert daily log to history format
+          const historyEntry = {
+            id: 'guest-log',
+            date: parsed.date || new Date().toISOString(),
+            foods: parsed.entries || [],
+            notes: 'Guest session log'
+          };
+          setLogs([historyEntry]);
+        } catch (e) {
+          setLogs([]);
+        }
+      } else {
+        setLogs([]);
+      }
+      setLoading(false);
+      return;
+    }
+
+    // For registered users, fetch from API
     const token = localStorage.getItem('token');
+    if (!token) {
+      setLoading(false);
+      return;
+    }
+    
     fetch('/api/nutrition-log', {
       headers: { Authorization: `Bearer ${token}` },
     })
@@ -93,48 +135,97 @@ export default function NutritionHistory() {
 
   useEffect(() => {
     fetchLogs();
-  }, []);
+  }, [user]);
 
-  const handleDelete = async (id: string) => {
-    if (!window.confirm('Delete this nutrition log?')) return;
-    const token = localStorage.getItem('token');
-    const res = await fetch(`/api/nutrition-log/${id}`, {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (res.ok) {
-      setLogs(logs => logs.filter(l => l.id !== id));
-    } else {
-      alert('Failed to delete log');
+  const handleDeleteClick = (id: string) => {
+    setDeleteConfirmModal({ isOpen: true, logId: id });
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteConfirmModal.logId) return;
+    
+    setIsDeleting(true);
+    
+    try {
+      // For guests, clear localStorage
+      if (user?.isGuest || user?.type === 'guest') {
+        localStorage.removeItem('guestNutritionLog');
+        setLogs([]);
+        toast.success('Nutrition log deleted successfully');
+        setDeleteConfirmModal({ isOpen: false, logId: null });
+        return;
+      }
+      
+      // For registered users, call API
+      const token = localStorage.getItem('token');
+      if (!token) return;
+      
+      const res = await fetch(`/api/nutrition-log/${deleteConfirmModal.logId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      
+      if (res.ok) {
+        toast.success('Nutrition log deleted successfully');
+        setLogs(logs => logs.filter(l => l.id !== deleteConfirmModal.logId));
+      } else {
+        toast.error('Failed to delete nutrition log. Please try again.');
+      }
+    } catch (error) {
+      toast.error('Failed to delete nutrition log. Please try again.');
+    } finally {
+      setIsDeleting(false);
+      setDeleteConfirmModal({ isOpen: false, logId: null });
     }
+  };
+
+  const handleDeleteCancel = () => {
+    setDeleteConfirmModal({ isOpen: false, logId: null });
   };
 
   if (loading) return <div>Loading nutrition history...</div>;
 
   return (
     <div className="mt-8">
-      <h2 className="text-2xl font-bold mb-4">Nutrition History</h2>
-      {logs.length === 0 && <div>No nutrition logs yet.</div>}
+      <h2 className="text-2xl font-bold mb-4 text-white">Nutrition History</h2>
+      {logs.length === 0 && <div className="text-gray-400">No nutrition logs yet.</div>}
       {logs.map(log => (
-        <div key={log.id} className="border rounded p-4 mb-4 bg-white shadow">
+        <div key={log.id} className="border border-gray-800 rounded p-4 mb-4 bg-gray-900 shadow">
           <div className="flex justify-between items-center mb-2">
-            <div className="font-semibold">{new Date(log.date).toLocaleString()}</div>
+            <div className="font-semibold text-white">{new Date(log.date).toLocaleString()}</div>
             <div className="space-x-2">
-              <button onClick={() => setEditingLog(log)} className="px-2 py-1 bg-yellow-100 rounded">Edit</button>
-              <button onClick={() => handleDelete(log.id)} className="px-2 py-1 bg-red-100 rounded">Delete</button>
+              {!user?.isGuest && !user?.type === 'guest' && (
+                <button onClick={() => setEditingLog(log)} className="px-2 py-1 bg-yellow-600 hover:bg-yellow-700 text-white rounded">Edit</button>
+              )}
+              <button onClick={() => handleDeleteClick(log.id)} className="px-2 py-1 bg-red-600 hover:bg-red-700 text-white rounded">Delete</button>
             </div>
           </div>
           <div className="mb-2">
             {log.foods && log.foods.map((food, idx) => (
-              <div key={idx} className="text-sm text-gray-700">
+              <div key={idx} className="text-sm text-gray-300">
                 {food.name} - {food.calories} cal, {food.protein}g P, {food.carbs}g C, {food.fat}g F
               </div>
             ))}
           </div>
-          <div className="text-gray-500 text-sm">Notes: {log.notes}</div>
+          <div className="text-gray-400 text-sm">Notes: {log.notes}</div>
         </div>
       ))}
-      {editingLog && <EditNutritionLogModal log={editingLog} onClose={() => setEditingLog(null)} onSave={fetchLogs} />}
+      {editingLog && !user?.isGuest && user?.type !== 'guest' && (
+        <EditNutritionLogModal log={editingLog} onClose={() => setEditingLog(null)} onSave={fetchLogs} />
+      )}
+      
+      {/* Delete Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={deleteConfirmModal.isOpen}
+        onClose={handleDeleteCancel}
+        onConfirm={handleDeleteConfirm}
+        title="Delete Nutrition Log"
+        message="Are you sure you want to delete this nutrition log? This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        type="danger"
+        isLoading={isDeleting}
+      />
     </div>
   );
 } 

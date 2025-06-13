@@ -3,6 +3,18 @@ export interface User {
   id: string
   email: string
   name: string
+  tier?: 'free' | 'basic' | 'premium'
+  type?: 'guest' | 'registered'
+  parqCompleted?: boolean
+  isAdmin?: boolean
+  isGuest?: boolean
+  profile?: {
+    email: string
+  }
+  subscription?: {
+    plan?: string
+  }
+  subscriptionStatus?: string
 }
 
 // API Response types

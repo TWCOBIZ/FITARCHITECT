@@ -1,45 +1,48 @@
 import { NextApiRequest, NextApiResponse } from 'next'
-import { getSession } from 'next-auth/react'
-import prisma from '../../../lib/db'
+import { api } from '../../../services/api'
 
+// This API route bridges frontend requests to the backend Express server
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const session = await getSession({ req })
-  if (!session || !session.user?.email) {
-    return res.status(401).json({ message: 'Unauthorized' })
-  }
-  const userEmail = session.user.email
+  try {
+    // Get the authorization header from the request
+    const authHeader = req.headers.authorization
+    
+    if (!authHeader) {
+      return res.status(401).json({ error: 'Authorization header required' })
+    }
 
-  switch (req.method) {
-    case 'GET': {
-      try {
-        const profile = await prisma.userProfile.findUnique({
-          where: { email: userEmail },
-          select: { notificationPreferences: true }
-        })
-        if (!profile) {
-          return res.status(404).json({ message: 'Profile not found' })
-        }
-        return res.status(200).json(profile.notificationPreferences || {})
-      } catch (error) {
-        console.error('Error fetching notification preferences:', error)
-        return res.status(500).json({ message: 'Internal server error' })
+    // Configure the request to the backend
+    const backendConfig: any = {
+      method: req.method,
+      url: `${process.env.BACKEND_URL || 'http://localhost:3001'}/api/user/notification-preferences`,
+      headers: {
+        'Authorization': authHeader,
+        'Content-Type': 'application/json'
       }
     }
-    case 'PUT': {
-      try {
-        const preferences = req.body
-        const updated = await prisma.userProfile.update({
-          where: { email: userEmail },
-          data: { notificationPreferences: preferences }
-        })
-        return res.status(200).json(updated.notificationPreferences)
-      } catch (error) {
-        console.error('Error updating notification preferences:', error)
-        return res.status(500).json({ message: 'Internal server error' })
-      }
+
+    // Add body for POST/PUT/PATCH requests
+    if (['POST', 'PUT', 'PATCH'].includes(req.method || '')) {
+      backendConfig.data = req.body
     }
-    default:
-      res.setHeader('Allow', ['GET', 'PUT'])
-      return res.status(405).json({ message: `Method ${req.method} not allowed` })
+
+    // Forward the request to the backend
+    const response = await api.request(backendConfig)
+    
+    // Return the backend response
+    res.status(response.status).json(response.data)
+  } catch (error: any) {
+    console.error('Notification preferences API route error:', error)
+    
+    if (error.response) {
+      // Backend returned an error response
+      res.status(error.response.status).json(error.response.data)
+    } else {
+      // Network or other error
+      res.status(500).json({ 
+        error: 'Internal server error',
+        message: error.message 
+      })
+    }
   }
-} 
+}

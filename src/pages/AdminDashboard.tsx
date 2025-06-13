@@ -1,13 +1,15 @@
 import React, { useEffect, useState } from 'react';
-import { Link, Routes, Route, useNavigate } from 'react-router-dom';
-import { useAdminAuth } from '../contexts/AdminAuthContext';
-import { api } from '../services/api'
+import { toast } from 'react-hot-toast';
+import { Routes, Route, useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
+import { api } from '../services/api';
 import AdminSidebar from '../components/admin/AdminSidebar';
 import AdminHeader from '../components/admin/AdminHeader';
 import Breadcrumbs from '../components/admin/Breadcrumbs';
 import { ThemeProvider } from '../contexts/ThemeContext';
 import PanelLayout from '../components/admin/PanelLayout';
 import { Dialog } from '@headlessui/react';
+import ConfirmationModal from '../components/common/ConfirmationModal';
 
 const panels = [
   { path: '', label: 'Overview' },
@@ -29,7 +31,7 @@ const PanelPlaceholder = ({ label }: PanelPlaceholderProps) => (
 // Users Panel
 const UsersPanel: React.FC = () => {
   const [users, setUsers] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [usersLoading, setUsersLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('all');
@@ -37,17 +39,17 @@ const UsersPanel: React.FC = () => {
   const [sort, setSort] = useState('createdAt-desc');
   const [editUser, setEditUser] = useState<any | null>(null);
   const [showEdit, setShowEdit] = useState(false);
-  const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [selectedUsers, setSelectedUsers] = useState<number[]>([]);
-  const auth = useAdminAuth() ?? {};
-  const { adminUser } = auth;
+  const [confirmModal, setConfirmModal] = useState<{isOpen: boolean, title: string, message: string, onConfirm: () => void} | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const { logout, loading, isAuthenticated, user } = useAuth();
 
   const fetchUsers = () => {
-    setLoading(true);
+    setUsersLoading(true);
     api.get('/api/admin/users')
       .then(res => setUsers(res.data))
       .catch(() => setError('Failed to load users'))
-      .finally(() => setLoading(false));
+      .finally(() => setUsersLoading(false));
   };
 
   useEffect(() => { fetchUsers(); }, []);
@@ -78,46 +80,79 @@ const UsersPanel: React.FC = () => {
     e.preventDefault();
     try {
       await api.patch(`/api/admin/users/${editUser.id}`, { name: editUser.name, email: editUser.email });
-      setToast({ type: 'success', message: 'User updated' });
+      toast.success('User updated successfully');
       fetchUsers();
       handleCloseEdit();
     } catch {
-      setToast({ type: 'error', message: 'Failed to update user' });
+      toast.error('Failed to update user');
     }
   };
 
   const handleActivate = async (user: any) => {
-    if (!window.confirm(`${user.active ? 'Deactivate' : 'Activate'} this user?`)) return;
-    try {
-      await api.post(`/api/admin/users/${user.id}/${user.active ? 'deactivate' : 'activate'}`);
-      setToast({ type: 'success', message: `User ${user.active ? 'deactivated' : 'activated'}` });
-      fetchUsers();
-    } catch {
-      setToast({ type: 'error', message: 'Failed to update user status' });
-    }
+    setConfirmModal({
+      isOpen: true,
+      title: `${user.active ? 'Deactivate' : 'Activate'} User`,
+      message: `Are you sure you want to ${user.active ? 'deactivate' : 'activate'} this user?`,
+      onConfirm: async () => {
+        setIsProcessing(true);
+        try {
+          await api.post(`/api/admin/users/${user.id}/${user.active ? 'deactivate' : 'activate'}`);
+          toast.success(`User ${user.active ? 'deactivated' : 'activated'} successfully`);
+          fetchUsers();
+        } catch {
+          toast.error('Failed to update user status');
+        } finally {
+          setIsProcessing(false);
+          setConfirmModal(null);
+        }
+      }
+    });
   };
 
   const handleResetPassword = async (user: any) => {
     const newPassword = window.prompt('Enter new password for this user:');
     if (!newPassword) return;
-    if (!window.confirm('Reset password for this user?')) return;
-    try {
-      await api.post(`/api/admin/users/${user.id}/reset-password`, { newPassword });
-      setToast({ type: 'success', message: 'Password reset' });
-    } catch {
-      setToast({ type: 'error', message: 'Failed to reset password' });
-    }
+    
+    setConfirmModal({
+      isOpen: true,
+      title: 'Reset User Password',
+      message: `Are you sure you want to reset the password for ${user.name || user.email}?`,
+      onConfirm: async () => {
+        setIsProcessing(true);
+        try {
+          await api.post(`/api/admin/users/${user.id}/reset-password`, { newPassword });
+          toast.success('Password reset successfully');
+        } catch {
+          toast.error('Failed to reset password');
+        } finally {
+          setIsProcessing(false);
+          setConfirmModal(null);
+        }
+      }
+    });
   };
 
   const handlePromote = async (user: any) => {
-    if (!window.confirm(`${user.isAdmin ? 'Demote this admin to user?' : 'Promote this user to admin?'}`)) return;
-    try {
-      await api.post(`/api/admin/users/${user.id}/role`, { isAdmin: !user.isAdmin });
-      setToast({ type: 'success', message: user.isAdmin ? 'User demoted' : 'User promoted to admin' });
-      fetchUsers();
-    } catch {
-      setToast({ type: 'error', message: 'Failed to update user role' });
-    }
+    const action = user.isAdmin ? 'Demote' : 'Promote';
+    
+    setConfirmModal({
+      isOpen: true,
+      title: `${action} User Role`,
+      message: `Are you sure you want to ${action.toLowerCase()} ${user.name || user.email} ${user.isAdmin ? 'from admin to user' : 'to admin'}?`,
+      onConfirm: async () => {
+        setIsProcessing(true);
+        try {
+          await api.post(`/api/admin/users/${user.id}/role`, { isAdmin: !user.isAdmin });
+          toast.success(user.isAdmin ? 'User demoted' : 'User promoted to admin');
+          fetchUsers();
+        } catch {
+          toast.error('Failed to update user role');
+        } finally {
+          setIsProcessing(false);
+          setConfirmModal(null);
+        }
+      }
+    });
   };
 
   const handleSelectUsers = (ids: number[]) => {
@@ -126,61 +161,98 @@ const UsersPanel: React.FC = () => {
 
   const handleBulkActivate = async () => {
     if (selectedUsers.length === 0) return;
-    if (!window.confirm(`Activate selected users?`)) return;
-    try {
-      await Promise.all(selectedUsers.map(id => api.post(`/api/admin/users/${id}/activate`)));
-      setToast({ type: 'success', message: `Selected users activated` });
-      fetchUsers();
-      setSelectedUsers([]);
-    } catch {
-      setToast({ type: 'error', message: 'Failed to activate selected users' });
-    }
+    
+    setConfirmModal({
+      isOpen: true,
+      title: 'Activate Selected Users',
+      message: `Are you sure you want to activate ${selectedUsers.length} selected user${selectedUsers.length > 1 ? 's' : ''}?`,
+      onConfirm: async () => {
+        setIsProcessing(true);
+        try {
+          await Promise.all(selectedUsers.map(id => api.post(`/api/admin/users/${id}/activate`)));
+          toast.success(`Selected users activated`);
+          fetchUsers();
+          setSelectedUsers([]);
+        } catch {
+          toast.error('Failed to activate selected users');
+        } finally {
+          setIsProcessing(false);
+          setConfirmModal(null);
+        }
+      }
+    });
   };
 
   const handleBulkDeactivate = async () => {
     if (selectedUsers.length === 0) return;
-    if (!window.confirm(`Deactivate selected users?`)) return;
-    try {
-      await Promise.all(selectedUsers.map(id => api.post(`/api/admin/users/${id}/deactivate`)));
-      setToast({ type: 'success', message: `Selected users deactivated` });
-      fetchUsers();
-      setSelectedUsers([]);
-    } catch {
-      setToast({ type: 'error', message: 'Failed to deactivate selected users' });
-    }
+    
+    setConfirmModal({
+      isOpen: true,
+      title: 'Deactivate Selected Users',
+      message: `Are you sure you want to deactivate ${selectedUsers.length} selected user${selectedUsers.length > 1 ? 's' : ''}?`,
+      onConfirm: async () => {
+        setIsProcessing(true);
+        try {
+          await Promise.all(selectedUsers.map(id => api.post(`/api/admin/users/${id}/deactivate`)));
+          toast.success(`Selected users deactivated`);
+          fetchUsers();
+          setSelectedUsers([]);
+        } catch {
+          toast.error('Failed to deactivate selected users');
+        } finally {
+          setIsProcessing(false);
+          setConfirmModal(null);
+        }
+      }
+    });
   };
 
   const handleBulkDelete = async () => {
     if (selectedUsers.length === 0) return;
-    if (!window.confirm(`Delete selected users?`)) return;
-    try {
-      await Promise.all(selectedUsers.map(id => api.delete(`/api/admin/users/${id}`)));
-      setToast({ type: 'success', message: `Selected users deleted` });
-      fetchUsers();
-      setSelectedUsers([]);
-    } catch {
-      setToast({ type: 'error', message: 'Failed to delete selected users' });
-    }
+    
+    setConfirmModal({
+      isOpen: true,
+      title: 'Delete Selected Users',
+      message: `Are you sure you want to permanently delete ${selectedUsers.length} selected user${selectedUsers.length > 1 ? 's' : ''}? This action cannot be undone.`,
+      onConfirm: async () => {
+        setIsProcessing(true);
+        try {
+          await Promise.all(selectedUsers.map(id => api.delete(`/api/admin/users/${id}`)));
+          toast.success(`Selected users deleted`);
+          fetchUsers();
+          setSelectedUsers([]);
+        } catch {
+          toast.error('Failed to delete selected users');
+        } finally {
+          setIsProcessing(false);
+          setConfirmModal(null);
+        }
+      }
+    });
   };
 
   const handleImpersonate = async (user: any) => {
-    if (!window.confirm(`Impersonate as this user?`)) return;
-    try {
-      const res = await api.post(`/api/admin/impersonate`, { userId: user.id });
-      localStorage.setItem('impersonationToken', res.data.token);
-      setToast({ type: 'success', message: `Impersonating as ${user.email}` });
-      window.location.href = '/dashboard'; // or wherever the user dashboard is
-    } catch {
-      setToast({ type: 'error', message: 'Failed to impersonate' });
-    }
+    setConfirmModal({
+      isOpen: true,
+      title: 'Impersonate User',
+      message: `Are you sure you want to impersonate ${user.name || user.email}? You will be logged in as this user.`,
+      onConfirm: async () => {
+        setIsProcessing(true);
+        try {
+          const res = await api.post(`/api/admin/impersonate`, { userId: user.id });
+          localStorage.setItem('impersonationToken', res.data.token);
+          toast.success(`Impersonating as ${user.email}`);
+          window.location.href = '/dashboard'; // or wherever the user dashboard is
+        } catch {
+          toast.error('Failed to impersonate');
+        } finally {
+          setIsProcessing(false);
+          setConfirmModal(null);
+        }
+      }
+    });
   };
 
-  useEffect(() => {
-    if (toast) {
-      const t = setTimeout(() => setToast(null), 3000);
-      return () => clearTimeout(t);
-    }
-  }, [toast]);
 
   return (
     <div className="p-6">
@@ -203,7 +275,7 @@ const UsersPanel: React.FC = () => {
           <option value="name-desc">Name Z-A</option>
         </select>
       </div>
-      {loading ? <div>Loading...</div> : error ? <div className="text-red-500">{error}</div> : (
+      {usersLoading ? <div>Loading...</div> : error ? <div className="text-red-500">{error}</div> : (
         <table className="w-full text-left bg-gray-800 rounded">
           <thead>
             <tr className="border-b border-gray-700">
@@ -236,7 +308,7 @@ const UsersPanel: React.FC = () => {
                   <button onClick={() => handleActivate(user)} className={`px-2 py-1 rounded font-semibold ${user.active ? 'bg-gray-600 hover:bg-gray-700 text-white' : 'bg-green-600 hover:bg-green-700 text-white'}`}>{user.active ? 'Deactivate' : 'Activate'}</button>
                   <button onClick={() => handleResetPassword(user)} className="px-2 py-1 bg-blue-600 hover:bg-blue-700 rounded text-white font-semibold">Reset PW</button>
                   <button onClick={() => handlePromote(user)} className={`px-2 py-1 rounded font-semibold ${user.isAdmin ? 'bg-gray-600 hover:bg-gray-700 text-white' : 'bg-purple-600 hover:bg-purple-700 text-white'}`}>{user.isAdmin ? 'Demote' : 'Promote'}</button>
-                  {user.id !== adminUser?.id && (
+                  {user && (
                     <button onClick={() => handleImpersonate(user)} className="px-2 py-1 bg-indigo-600 hover:bg-indigo-700 rounded text-white font-semibold">Impersonate</button>
                   )}
                 </td>
@@ -268,9 +340,18 @@ const UsersPanel: React.FC = () => {
           </div>
         </div>
       )}
-      {/* Toast */}
-      {toast && (
-        <div className={`fixed bottom-4 right-4 px-4 py-2 rounded shadow-lg z-50 ${toast.type === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'}`}>{toast.message}</div>
+      
+      {/* Confirmation Modal */}
+      {confirmModal && (
+        <ConfirmationModal
+          isOpen={confirmModal.isOpen}
+          onClose={() => setConfirmModal(null)}
+          onConfirm={confirmModal.onConfirm}
+          title={confirmModal.title}
+          message={confirmModal.message}
+          type="warning"
+          isLoading={isProcessing}
+        />
       )}
     </div>
   );
@@ -289,10 +370,11 @@ const SubscriptionsPanel: React.FC = () => {
   const [planForm, setPlanForm] = useState<any>({ id: '', name: '', price: '' });
   const [editingPlan, setEditingPlan] = useState<any | null>(null);
   const [planModalType, setPlanModalType] = useState<'add' | 'edit' | null>(null);
-  const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [detailsError, setDetailsError] = useState<string | null>(null);
   const [paymentHistory, setPaymentHistory] = useState<any[]>([]);
+  const [confirmModal, setConfirmModal] = useState<{isOpen: boolean, title: string, message: string, onConfirm: () => void} | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const fetchAll = async () => {
     setLoading(true);
@@ -342,39 +424,72 @@ const SubscriptionsPanel: React.FC = () => {
   // Cancel, Refund, Change Plan actions
   const handleCancel = async () => {
     if (!selectedSub) return;
-    if (!window.confirm('Cancel this subscription?')) return;
-    try {
-      await api.post(`/api/admin/subscriptions/${selectedSub.id}/cancel`);
-      setToast({ type: 'success', message: 'Subscription cancelled' });
-      setShowDetails(false);
-      fetchAll();
-    } catch {
-      setToast({ type: 'error', message: 'Failed to cancel subscription' });
-    }
+    
+    setConfirmModal({
+      isOpen: true,
+      title: 'Cancel Subscription',
+      message: `Are you sure you want to cancel the subscription for ${selectedSub.userEmail}?`,
+      onConfirm: async () => {
+        setIsProcessing(true);
+        try {
+          await api.post(`/api/admin/subscriptions/${selectedSub.id}/cancel`);
+          toast.success('Subscription cancelled');
+          setShowDetails(false);
+          fetchAll();
+        } catch {
+          toast.error('Failed to cancel subscription');
+        } finally {
+          setIsProcessing(false);
+          setConfirmModal(null);
+        }
+      }
+    });
   };
   const handleRefund = async () => {
     if (!selectedSub) return;
-    if (!window.confirm('Refund this subscription?')) return;
-    try {
-      await api.post(`/api/admin/subscriptions/${selectedSub.id}/refund`);
-      setToast({ type: 'success', message: 'Subscription refunded' });
-      setShowDetails(false);
-      fetchAll();
-    } catch {
-      setToast({ type: 'error', message: 'Failed to refund subscription' });
-    }
+    
+    setConfirmModal({
+      isOpen: true,
+      title: 'Refund Subscription',
+      message: `Are you sure you want to refund the subscription for ${selectedSub.userEmail}?`,
+      onConfirm: async () => {
+        setIsProcessing(true);
+        try {
+          await api.post(`/api/admin/subscriptions/${selectedSub.id}/refund`);
+          toast.success('Subscription refunded');
+          setShowDetails(false);
+          fetchAll();
+        } catch {
+          toast.error('Failed to refund subscription');
+        } finally {
+          setIsProcessing(false);
+          setConfirmModal(null);
+        }
+      }
+    });
   };
   const handleChangePlan = async (planId: string) => {
     if (!selectedSub) return;
-    if (!window.confirm('Change plan for this subscription?')) return;
-    try {
-      await api.post(`/api/admin/subscriptions/${selectedSub.id}/change-plan`, { planId });
-      setToast({ type: 'success', message: 'Plan changed' });
-      setShowDetails(false);
-      fetchAll();
-    } catch {
-      setToast({ type: 'error', message: 'Failed to change plan' });
-    }
+    
+    setConfirmModal({
+      isOpen: true,
+      title: 'Change Subscription Plan',
+      message: `Are you sure you want to change the plan for ${selectedSub.userEmail}?`,
+      onConfirm: async () => {
+        setIsProcessing(true);
+        try {
+          await api.post(`/api/admin/subscriptions/${selectedSub.id}/change-plan`, { planId });
+          toast.success('Plan changed');
+          setShowDetails(false);
+          fetchAll();
+        } catch {
+          toast.error('Failed to change plan');
+        } finally {
+          setIsProcessing(false);
+          setConfirmModal(null);
+        }
+      }
+    });
   };
 
   // Plan management
@@ -392,39 +507,27 @@ const SubscriptionsPanel: React.FC = () => {
     setEditingPlan(null);
     setPlanForm({ id: '', name: '', price: '' });
   };
-  const handleSavePlan = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      if (planModalType === 'add') {
-        await api.post('/api/admin/plans', { name: planForm.name, price: Number(planForm.price) });
-        setToast({ type: 'success', message: 'Plan added' });
-      } else if (planModalType === 'edit' && editingPlan) {
-        await api.patch(`/api/admin/plans/${editingPlan.id}`, { name: planForm.name, price: Number(planForm.price) });
-        setToast({ type: 'success', message: 'Plan updated' });
-      }
-      closePlanModal();
-      fetchAll();
-    } catch {
-      setToast({ type: 'error', message: 'Failed to save plan' });
-    }
-  };
   const handleDeletePlan = async (plan: any) => {
-    if (!window.confirm('Delete this plan?')) return;
-    try {
-      await api.delete(`/api/admin/plans/${plan.id}`);
-      setToast({ type: 'success', message: 'Plan deleted' });
-      fetchAll();
-    } catch {
-      setToast({ type: 'error', message: 'Failed to delete plan' });
-    }
+    setConfirmModal({
+      isOpen: true,
+      title: 'Delete Plan',
+      message: `Are you sure you want to delete the plan "${plan.name}"? This action cannot be undone.`,
+      onConfirm: async () => {
+        setIsProcessing(true);
+        try {
+          await api.delete(`/api/admin/plans/${plan.id}`);
+          toast.success('Plan deleted');
+          fetchAll();
+        } catch {
+          toast.error('Failed to delete plan');
+        } finally {
+          setIsProcessing(false);
+          setConfirmModal(null);
+        }
+      }
+    });
   };
 
-  useEffect(() => {
-    if (toast) {
-      const t = setTimeout(() => setToast(null), 3000);
-      return () => clearTimeout(t);
-    }
-  }, [toast]);
 
   return (
     <div className="p-6">
@@ -554,6 +657,19 @@ const SubscriptionsPanel: React.FC = () => {
           </div>
         </div>
       )}
+      
+      {/* Confirmation Modal */}
+      {confirmModal && (
+        <ConfirmationModal
+          isOpen={confirmModal.isOpen}
+          onClose={() => setConfirmModal(null)}
+          onConfirm={confirmModal.onConfirm}
+          title={confirmModal.title}
+          message={confirmModal.message}
+          type="warning"
+          isLoading={isProcessing}
+        />
+      )}
     </div>
   );
 };
@@ -565,7 +681,6 @@ const AnalyticsPanel: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [start, setStart] = useState('');
   const [end, setEnd] = useState('');
-  const [toast, setToast] = useState<string|null>(null);
   const [showSchedule, setShowSchedule] = useState(false);
   const [scheduleConfig, setScheduleConfig] = useState({ frequency: 'weekly', time: '', recipients: '' });
   const [scheduling, setScheduling] = useState(false);
@@ -590,9 +705,9 @@ const AnalyticsPanel: React.FC = () => {
       a.click();
       a.remove();
       window.URL.revokeObjectURL(url);
-      setToast('PDF downloaded');
+      toast.success('PDF downloaded successfully');
     } catch {
-      setToast('Failed to export PDF');
+      toast.error('Failed to export PDF');
     }
   };
   const handleScheduleReport = async (e: React.FormEvent) => {
@@ -600,15 +715,14 @@ const AnalyticsPanel: React.FC = () => {
     setScheduling(true);
     try {
       await api.post('/api/admin/analytics/schedule-report', scheduleConfig);
-      setToast('Report scheduled');
+      toast.success('Report scheduled');
       setShowSchedule(false);
     } catch {
-      setToast('Failed to schedule report');
+      toast.error('Failed to schedule report');
     } finally {
       setScheduling(false);
     }
   };
-  useEffect(()=>{ if(toast){ const t=setTimeout(()=>setToast(null),3000); return()=>clearTimeout(t);} },[toast]);
 
   // Mock chart: just a bar for each subscription tier
   const chartData = data?.subscriptionBreakdown || { free: 0, basic: 0, premium: 0 };
@@ -693,7 +807,6 @@ const AnalyticsPanel: React.FC = () => {
           </div>
         </div>
       )}
-      {toast && <div className="fixed bottom-4 right-4 bg-green-600 text-white px-4 py-2 rounded shadow-lg">{toast}</div>}
     </div>
   );
 };
@@ -712,7 +825,6 @@ const ParqPanel: React.FC = () => {
   const [dateFilter, setDateFilter] = useState('');
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
 
   // Fetch all responses
   const fetchResponses = () => {
@@ -747,7 +859,7 @@ const ParqPanel: React.FC = () => {
     if (!selected) return;
     setSaving(true);
     await api.post(`/api/admin/parq-responses/${selected.userId}/flag`, { flaggedQuestions: ids });
-    setToast('Flagged for follow-up');
+    toast.success('Flagged for follow-up');
     fetchResponses();
     setSaving(false);
   };
@@ -756,7 +868,7 @@ const ParqPanel: React.FC = () => {
     if (!selected || !note) return;
     setSaving(true);
     await api.post(`/api/admin/parq-responses/${selected.userId}/note`, { note });
-    setToast('Note added');
+    toast.success('Note added');
     fetchResponses();
     setNote('');
     setSaving(false);
@@ -765,7 +877,7 @@ const ParqPanel: React.FC = () => {
   const handleReviewed = async (r: any) => {
     setSaving(true);
     await api.patch(`/api/admin/parq-responses/${r.userId}/reviewed`);
-    setToast('Marked as reviewed');
+    toast.success('Marked as reviewed');
     fetchResponses();
     setSaving(false);
   };
@@ -854,7 +966,7 @@ const ParqPanel: React.FC = () => {
         </div>
       )}
       <Dialog open={showDetail} onClose={closeDetail} className="fixed z-50 inset-0 flex items-center justify-center">
-        <Dialog.Overlay className="fixed inset-0 bg-black/60" />
+        <div className="fixed inset-0 bg-black/60" />
         <div className="relative bg-gray-900 rounded-lg p-8 w-full max-w-2xl mx-auto">
           <Dialog.Title className="text-xl font-bold mb-2">PAR-Q Submission Details</Dialog.Title>
           {selected && (
@@ -883,7 +995,6 @@ const ParqPanel: React.FC = () => {
           )}
         </div>
       </Dialog>
-      {toast && <div className="fixed bottom-4 right-4 bg-green-600 text-white px-4 py-2 rounded shadow-lg">{toast}</div>}
     </div>
   );
 };
@@ -895,6 +1006,8 @@ const ContentPanel: React.FC = () => {
   const [error, setError] = React.useState<string | null>(null);
   const [form, setForm] = React.useState({ title: '', type: '', body: '', id: null as number | null });
   const [saving, setSaving] = React.useState(false);
+  const [confirmModal, setConfirmModal] = React.useState<{isOpen: boolean, title: string, message: string, onConfirm: () => void} | null>(null);
+  const [isProcessing, setIsProcessing] = React.useState(false);
 
   const fetchItems = async () => {
     setLoading(true);
@@ -946,19 +1059,31 @@ const ContentPanel: React.FC = () => {
   };
 
   const handleDelete = async (id: number) => {
-    if (!window.confirm('Delete this content item?')) return;
-    setError(null);
-    try {
-      const token = localStorage.getItem('adminToken');
-      const res = await fetch(`/api/admin/content/${id}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (!res.ok) throw new Error('Failed to delete content');
-      fetchItems();
-    } catch (err: any) {
-      setError(err.message || 'Failed to delete content');
-    }
+    const item = items.find(i => i.id === id);
+    
+    setConfirmModal({
+      isOpen: true,
+      title: 'Delete Content Item',
+      message: `Are you sure you want to delete "${item?.title || 'this content item'}"? This action cannot be undone.`,
+      onConfirm: async () => {
+        setIsProcessing(true);
+        setError(null);
+        try {
+          const token = localStorage.getItem('adminToken');
+          const res = await fetch(`/api/admin/content/${id}`, {
+            method: 'DELETE',
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (!res.ok) throw new Error('Failed to delete content');
+          fetchItems();
+        } catch (err: any) {
+          setError(err.message || 'Failed to delete content');
+        } finally {
+          setIsProcessing(false);
+          setConfirmModal(null);
+        }
+      }
+    });
   };
 
   return (
@@ -1001,6 +1126,19 @@ const ContentPanel: React.FC = () => {
           </tbody>
         </table>
       )}
+      
+      {/* Confirmation Modal */}
+      {confirmModal && (
+        <ConfirmationModal
+          isOpen={confirmModal.isOpen}
+          onClose={() => setConfirmModal(null)}
+          onConfirm={confirmModal.onConfirm}
+          title={confirmModal.title}
+          message={confirmModal.message}
+          type="warning"
+          isLoading={isProcessing}
+        />
+      )}
     </div>
   );
 };
@@ -1012,7 +1150,6 @@ const NotificationsPanel: React.FC = () => {
   const [message, setMessage] = useState('');
   const [schedule, setSchedule] = useState('');
   const [sending, setSending] = useState(false);
-  const [toast, setToast] = useState<string|null>(null);
   const [sent, setSent] = useState<any[]>([]);
 
   const fetchSent = async () => {
@@ -1026,17 +1163,16 @@ const NotificationsPanel: React.FC = () => {
     setSending(true);
     try {
       await api.post('/api/admin/notifications', { recipients, channel, message, schedule });
-      setToast('Notification scheduled');
+      toast.success('Notification scheduled');
       setMessage('');
       setSchedule('');
       fetchSent();
     } catch {
-      setToast('Failed to send notification');
+      toast.error('Failed to send notification');
     } finally {
       setSending(false);
     }
   };
-  useEffect(()=>{ if(toast){ const t=setTimeout(()=>setToast(null),3000); return()=>clearTimeout(t);} },[toast]);
 
   return (
     <div className="p-6">
@@ -1060,7 +1196,6 @@ const NotificationsPanel: React.FC = () => {
         <thead><tr><th>To</th><th>Channel</th><th>Message</th><th>Scheduled</th><th>Status</th></tr></thead>
         <tbody>{sent.map((n:any)=>(<tr key={n.id}><td>{n.recipients}</td><td>{n.channel}</td><td>{n.message}</td><td>{n.schedule ? new Date(n.schedule).toLocaleString() : '-'}</td><td>{n.status}</td></tr>))}</tbody>
       </table>
-      {toast && <div className="fixed bottom-4 right-4 bg-green-600 text-white px-4 py-2 rounded shadow-lg">{toast}</div>}
     </div>
   );
 };
@@ -1071,7 +1206,6 @@ const SystemManagementPanel: React.FC = () => {
   const [maintenance, setMaintenance] = useState(false);
   const [notifEmail, setNotifEmail] = useState('');
   const [saving, setSaving] = useState(false);
-  const [toast, setToast] = useState<string|null>(null);
   const [flaggedContent, setFlaggedContent] = useState<any[]>([]);
   const [errors, setErrors] = useState<any[]>([]);
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
@@ -1126,33 +1260,33 @@ const SystemManagementPanel: React.FC = () => {
     setSaving(true);
     await api.patch('/api/admin/settings', { maintenance, notifEmail });
     setSaving(false);
-    setToast('Settings saved');
+    toast.success('Settings saved');
     fetchSettings();
   };
   // Approve/Reject content
   const handleApprove = async (id:string) => {
     await api.post(`/api/admin/content/${id}/approve`);
-    setToast('Content approved');
+    toast.success('Content approved');
     fetchAll();
   };
   const handleReject = async (id:string) => {
     await api.post(`/api/admin/content/${id}/reject`);
-    setToast('Content rejected');
+    toast.success('Content rejected');
     fetchAll();
   };
   // Backup/Restore
   const handleBackup = async () => {
     await api.post('/api/admin/backup');
-    setToast('Backup triggered');
+    toast.success('Backup triggered');
   };
   const handleRestore = async () => {
     await api.post('/api/admin/restore');
-    setToast('Restore triggered');
+    toast.success('Restore triggered');
   };
   // Send notification
   const handleSendNotification = async () => {
     await api.post('/api/admin/notifications', { message: 'Test notification' });
-    setToast('Notification sent');
+    toast.success('Notification sent');
     fetchAll();
   };
 
@@ -1205,9 +1339,9 @@ const SystemManagementPanel: React.FC = () => {
         headers: { 'Content-Type': 'multipart/form-data' },
         onUploadProgress: (p) => setUploadProgress(Math.round((p.loaded * 100) / (p.total || 1)))
       });
-      setToast('Restore uploaded');
+      toast.success('Restore uploaded');
     } catch {
-      setToast('Failed to upload restore');
+      toast.error('Failed to upload restore');
     } finally {
       setUploading(false);
       setUploadProgress(0);
@@ -1226,9 +1360,9 @@ const SystemManagementPanel: React.FC = () => {
       a.click();
       a.remove();
       window.URL.revokeObjectURL(url);
-      setToast('Audit logs exported');
+      toast.success('Audit logs exported');
     } catch {
-      setToast('Failed to export audit logs');
+      toast.error('Failed to export audit logs');
     } finally {
       setAuditExporting(false);
     }
@@ -1343,7 +1477,6 @@ const SystemManagementPanel: React.FC = () => {
           )}
         </div>
       )}
-      {toast && <div className="fixed bottom-4 right-4 bg-green-600 text-white px-4 py-2 rounded shadow-lg">{toast}</div>}
     </div>
   );
 };
@@ -1392,7 +1525,6 @@ const StripeWebhookPanel: React.FC = () => {
   const [events, setEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [toast, setToast] = useState<string | null>(null);
 
   const fetchEvents = async () => {
     setLoading(true);
@@ -1411,18 +1543,12 @@ const StripeWebhookPanel: React.FC = () => {
   const handleRetry = async (id: string) => {
     try {
       await api.post('/api/admin/stripe-webhooks/retry', { id });
-      setToast('Retry triggered');
+      toast.success('Retry triggered');
       fetchEvents();
     } catch {
-      setToast('Failed to retry');
+      toast.error('Failed to retry');
     }
   };
-  useEffect(() => {
-    if (toast) {
-      const t = setTimeout(() => setToast(null), 3000);
-      return () => clearTimeout(t);
-    }
-  }, [toast]);
 
   return (
     <div className="p-6">
@@ -1459,21 +1585,20 @@ const StripeWebhookPanel: React.FC = () => {
           </tbody>
         </table>
       )}
-      {toast && <div className="fixed bottom-4 right-4 bg-green-600 text-white px-4 py-2 rounded shadow-lg">{toast}</div>}
     </div>
   );
 };
 
 const AdminDashboard = () => {
-  const auth = useAdminAuth() ?? {};
-  const { adminUser, isAdminAuthenticated, loading, logout } = auth;
+  const { logout, loading, isAuthenticated, user } = useAuth();
+  // Admin auth handled by unified context
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (!loading && !isAdminAuthenticated) {
+    if (!loading && !isAuthenticated) {
       navigate('/admin/login');
     }
-  }, [loading, isAdminAuthenticated, navigate]);
+  }, [loading, isAuthenticated, navigate]);
 
   const handleLogout = () => {
     if (logout) {
@@ -1486,7 +1611,7 @@ const AdminDashboard = () => {
     return <div className="min-h-screen flex items-center justify-center bg-gray-900 text-white">Loading...</div>;
   }
 
-  if (!isAdminAuthenticated) {
+  if (!isAuthenticated) {
     return null;
   }
 
@@ -1496,7 +1621,7 @@ const AdminDashboard = () => {
         <AdminSidebar onLogout={handleLogout} />
         {/* Main Content */}
         <main className="flex-1 flex flex-col ml-0 md:ml-64">
-          <AdminHeader email={adminUser?.email} />
+          <AdminHeader email={user?.email} />
           <Breadcrumbs />
           <div className="flex-1 overflow-y-auto">
             <Routes>

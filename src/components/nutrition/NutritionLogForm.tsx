@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import { toast } from 'react-hot-toast';
 import BarcodeScanner from './BarcodeScanner';
 import { openFoodFactsService } from '../../services/openFoodFactsService';
-import { api } from '../../services/api';
+import { useNutrition } from '../../contexts/NutritionContext';
 
 interface NutritionLogFormProps {
   onLogged?: () => void;
@@ -19,6 +20,7 @@ interface Food {
 }
 
 export default function NutritionLogForm({ onLogged }: NutritionLogFormProps) {
+  const { addFoodEntry } = useNutrition();
   const [foods, setFoods] = useState<Food[]>([
     { name: '', brand: '', barcode: '', calories: '', protein: '', carbs: '', fat: '' }
   ]);
@@ -77,28 +79,28 @@ export default function NutritionLogForm({ onLogged }: NutritionLogFormProps) {
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
-    const macros = foods.reduce(
-      (acc, f) => ({
-        protein: acc.protein + Number(f.protein || 0),
-        carbs: acc.carbs + Number(f.carbs || 0),
-        fat: acc.fat + Number(f.fat || 0),
-      }),
-      { protein: 0, carbs: 0, fat: 0 }
-    );
-    const calories = foods.reduce((acc, f) => acc + Number(f.calories || 0), 0);
+    
     try {
-      await api.post('/api/nutrition-log', {
-        foods,
-        calories,
-        macros,
-        notes,
-      });
+      // Add each food entry to the daily log using NutritionContext
+      for (const food of foods) {
+        if (food.name) { // Only add foods with names
+          await addFoodEntry({
+            name: food.name,
+            calories: Number(food.calories || 0),
+            protein: Number(food.protein || 0),
+            carbs: Number(food.carbs || 0),
+            fat: Number(food.fat || 0),
+            servingSize: '1 serving',
+            servingUnit: ''
+          });
+        }
+      }
+      
       setFoods([{ name: '', brand: '', barcode: '', calories: '', protein: '', carbs: '', fat: '' }]);
       setNotes('');
       if (onLogged) onLogged();
-      alert('Nutrition log saved!');
-    } catch {
-      alert('Failed to log nutrition');
+    } catch (err) {
+      console.error('Failed to log nutrition:', err);
     } finally {
       setLoading(false);
     }
@@ -127,25 +129,25 @@ export default function NutritionLogForm({ onLogged }: NutritionLogFormProps) {
         ));
       } else {
         setFoods(foods => foods.map((f, i) => i === scanningIdx ? { ...f, barcode } : f));
-        alert('Food not found in Open Food Facts.');
+        toast.error('Food not found in Open Food Facts database. Please enter nutrition information manually.');
       }
     } catch (err) {
       setFoods(foods => foods.map((f, i) => i === scanningIdx ? { ...f, barcode } : f));
-      alert('Error looking up food info.');
+      toast.error('Error looking up food information. Please check your connection and try again.');
     }
     setLookupLoading(false);
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <h2 className="text-xl font-bold">Log Nutrition</h2>
+    <form onSubmit={handleSubmit} className="space-y-4 bg-gray-900 p-6 rounded-lg border border-gray-800">
+      <h2 className="text-xl font-bold text-white">Log Nutrition</h2>
       {/* Favorites Section */}
       {favorites.length > 0 && (
         <div className="mb-2">
-          <div className="font-semibold mb-1">Favorites:</div>
+          <div className="font-semibold mb-1 text-white">Favorites:</div>
           <div className="flex flex-wrap gap-2">
             {favorites.map((food, idx) => (
-              <button type="button" key={idx} onClick={() => addFavoriteToFoods(food)} className="px-2 py-1 bg-yellow-100 rounded text-sm">
+              <button type="button" key={idx} onClick={() => addFavoriteToFoods(food)} className="px-2 py-1 bg-yellow-600 hover:bg-yellow-700 text-white rounded text-sm">
                 {food.name} {food.brand && `(${food.brand})`}
               </button>
             ))}
@@ -155,11 +157,11 @@ export default function NutritionLogForm({ onLogged }: NutritionLogFormProps) {
       {/* Presets Section */}
       {presets.length > 0 && (
         <div className="mb-2">
-          <div className="font-semibold mb-1">Presets:</div>
+          <div className="font-semibold mb-1 text-white">Presets:</div>
           <select onChange={e => {
             const idx = Number(e.target.value);
             if (!isNaN(idx)) addPresetToFoods(presets[idx].foods);
-          }} className="border rounded px-2 py-1">
+          }} className="border border-gray-600 rounded px-2 py-1 bg-gray-800 text-white">
             <option value="">Select a preset</option>
             {presets.map((preset, idx) => (
               <option key={idx} value={idx}>{preset.name}</option>
@@ -169,40 +171,42 @@ export default function NutritionLogForm({ onLogged }: NutritionLogFormProps) {
       )}
       {/* Foods Form */}
       {foods.map((food, idx) => (
-        <div key={idx} className="border p-4 rounded mb-2 bg-gray-50 flex items-center">
-          <div className="flex-1">
-            <input placeholder="Food name" value={food.name} onChange={e => handleFoodChange(idx, 'name', e.target.value)} required className="border p-1 rounded w-full text-black" />
-            <input placeholder="Brand" value={food.brand} onChange={e => handleFoodChange(idx, 'brand', e.target.value)} className="border p-1 rounded w-full text-black" />
+        <div key={idx} className="border border-gray-600 p-4 rounded mb-2 bg-gray-800 flex items-center">
+          <div className="flex-1 space-y-2">
+            <input placeholder="Food name" value={food.name} onChange={e => handleFoodChange(idx, 'name', e.target.value)} required className="border border-gray-600 p-2 rounded w-full bg-gray-700 text-white placeholder-gray-400" />
+            <input placeholder="Brand" value={food.brand} onChange={e => handleFoodChange(idx, 'brand', e.target.value)} className="border border-gray-600 p-2 rounded w-full bg-gray-700 text-white placeholder-gray-400" />
             <div className="flex items-center space-x-2">
               <input
                 type="text"
                 placeholder="Barcode"
                 value={food.barcode}
                 onChange={e => handleFoodChange(idx, 'barcode', e.target.value)}
-                className="border rounded px-2 py-1 flex-1 text-black"
+                className="border border-gray-600 rounded px-2 py-1 flex-1 bg-gray-700 text-white placeholder-gray-400"
               />
-              <button type="button" onClick={() => { setShowScanner(true); setScanningIdx(idx); }} className="px-2 py-1 bg-blue-100 rounded">Scan</button>
+              <button type="button" onClick={() => { setShowScanner(true); setScanningIdx(idx); }} className="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded">Scan</button>
             </div>
-            <input placeholder="Calories" type="number" value={food.calories} onChange={e => handleFoodChange(idx, 'calories', e.target.value)} className="border p-1 rounded w-full text-black" />
-            <input placeholder="Protein (g)" type="number" value={food.protein} onChange={e => handleFoodChange(idx, 'protein', e.target.value)} className="border p-1 rounded w-full text-black" />
-            <input placeholder="Carbs (g)" type="number" value={food.carbs} onChange={e => handleFoodChange(idx, 'carbs', e.target.value)} className="border p-1 rounded w-full text-black" />
-            <input placeholder="Fat (g)" type="number" value={food.fat} onChange={e => handleFoodChange(idx, 'fat', e.target.value)} className="border p-1 rounded w-full text-black" />
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+              <input placeholder="Calories" type="number" value={food.calories} onChange={e => handleFoodChange(idx, 'calories', e.target.value)} className="border border-gray-600 p-2 rounded bg-gray-700 text-white placeholder-gray-400" />
+              <input placeholder="Protein (g)" type="number" value={food.protein} onChange={e => handleFoodChange(idx, 'protein', e.target.value)} className="border border-gray-600 p-2 rounded bg-gray-700 text-white placeholder-gray-400" />
+              <input placeholder="Carbs (g)" type="number" value={food.carbs} onChange={e => handleFoodChange(idx, 'carbs', e.target.value)} className="border border-gray-600 p-2 rounded bg-gray-700 text-white placeholder-gray-400" />
+              <input placeholder="Fat (g)" type="number" value={food.fat} onChange={e => handleFoodChange(idx, 'fat', e.target.value)} className="border border-gray-600 p-2 rounded bg-gray-700 text-white placeholder-gray-400" />
+            </div>
           </div>
           <button type="button" onClick={() => toggleFavorite(food)} className={`ml-2 text-xl ${favorites.find(f => f.name === food.name && f.brand === food.brand) ? 'text-yellow-400' : 'text-gray-300'}`}>★</button>
         </div>
       ))}
-      <button type="button" onClick={addFood} className="bg-gray-200 px-2 py-1 rounded">Add Another Food</button>
+      <button type="button" onClick={addFood} className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded">Add Another Food</button>
       {/* Save as Preset */}
       {foods.length > 1 && (
         <div className="flex items-center space-x-2 mt-2">
-          <input type="text" placeholder="Preset name" value={presetName} onChange={e => setPresetName(e.target.value)} className="border rounded px-2 py-1" />
-          <button type="button" onClick={savePreset} className="bg-green-200 px-2 py-1 rounded">Save as Preset</button>
+          <input type="text" placeholder="Preset name" value={presetName} onChange={e => setPresetName(e.target.value)} className="border border-gray-600 rounded px-2 py-1 bg-gray-700 text-white placeholder-gray-400" />
+          <button type="button" onClick={savePreset} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded">Save as Preset</button>
         </div>
       )}
-      <textarea placeholder="Notes" value={notes} onChange={e => setNotes(e.target.value)} className="border p-1 rounded w-full text-black" />
-      <button type="submit" disabled={loading} className="bg-blue-600 text-white px-4 py-2 rounded">{loading ? 'Saving...' : 'Log Nutrition'}</button>
+      <textarea placeholder="Notes" value={notes} onChange={e => setNotes(e.target.value)} className="border border-gray-600 p-2 rounded w-full bg-gray-700 text-white placeholder-gray-400" />
+      <button type="submit" disabled={loading} className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-6 py-3 rounded-lg font-semibold">{loading ? 'Saving...' : 'Log Nutrition'}</button>
       {showScanner && <BarcodeScanner onDetected={handleBarcodeDetected} onClose={() => setShowScanner(false)} />}
-      {lookupLoading && <p>Looking up food info...</p>}
+      {lookupLoading && <p className="text-gray-300">Looking up food info...</p>}
     </form>
   );
 } 
