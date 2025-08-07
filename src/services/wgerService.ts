@@ -1,275 +1,397 @@
-import axios from 'axios'
+// WGER Exercise Database Service
+// Now uses backend proxy for secure API access
+import type { 
+  WgerExercise, 
+  WgerEquipment, 
+  WgerMuscle, 
+  WgerCategory,
+  ExerciseSearchResult
+} from '../types/wger'
 
-const WGER_API_BASE_URL = 'https://wger.de/api/v2'
+// Re-export WgerExercise
+export type { WgerExercise } from '../types/wger'
+import type { Exercise, MuscleGroup, Equipment } from '../types/workout'
+import { api } from './api'
+import { 
+  COMPREHENSIVE_EXERCISE_DATABASE, 
+  ComprehensiveExercise,
+  getExercisesByMuscleGroup,
+  getExercisesByDifficulty,
+  getExercisesByEquipment 
+} from '../data/comprehensiveExerciseDatabase'
 
-export interface Exercise {
-  id: number
-  name: string
-  muscles: string[]
-  equipment: string[]
-  description?: string
-  difficulty?: string
-  instructions?: string[]
-  imageUrl?: string
-  videoUrl?: string
+// Re-export from exercise utilities
+export { normalizeExerciseName } from '../utils/exerciseNameUtils'
+
+// Map WGER muscle IDs to our muscle groups
+const MUSCLE_GROUP_MAP: Record<number, MuscleGroup> = {
+  1: 'biceps',
+  2: 'shoulders',
+  3: 'chest',
+  4: 'shoulders',
+  5: 'triceps',
+  6: 'core',
+  7: 'legs',
+  8: 'legs',
+  9: 'back',
+  10: 'legs',
+  11: 'legs',
+  12: 'back',
+  13: 'biceps',
+  14: 'core',
+  15: 'legs'
 }
 
-export interface WgerExercise {
-  id: number
-  uuid: string
-  name: string
-  description: string
-  category: number
-  muscles: number[]
-  muscles_secondary: number[]
-  equipment: number[]
-  variations: number | null
-  images: {
-    id: number
-    uuid: string
-    exercise_base: number
-    image: string
-    is_main: boolean
-  }[]
-  comments: {
-    id: number
-    uuid: string
-    exercise: number
-    comment: string
-  }[]
+// Map WGER equipment IDs to our equipment types
+const EQUIPMENT_MAP: Record<number, Equipment> = {
+  1: 'barbell',
+  2: 'dumbbell', 
+  3: 'bodyweight',
+  4: 'cable',
+  5: 'machine',
+  6: 'kettlebell',
+  7: 'bodyweight',
+  8: 'dumbbell',
+  9: 'machine',
+  10: 'resistanceBand'
 }
 
-export interface WgerMuscle {
-  id: number
-  name: string
-  is_front: boolean
-  image_url_main: string
-  image_url_secondary: string
+// Comprehensive fallback exercises with proper typing
+export const FALLBACK_EXERCISES: Record<string, ComprehensiveExercise[]> = {
+  chest: getExercisesByMuscleGroup('chest').slice(0, 10),
+  back: getExercisesByMuscleGroup('back').slice(0, 10),
+  shoulders: getExercisesByMuscleGroup('shoulders').slice(0, 10),
+  biceps: getExercisesByMuscleGroup('biceps').slice(0, 10),
+  triceps: getExercisesByMuscleGroup('triceps').slice(0, 10),
+  legs: getExercisesByMuscleGroup('legs').slice(0, 10),
+  core: getExercisesByMuscleGroup('core').slice(0, 10),
+  fullBody: getExercisesByMuscleGroup('fullBody').slice(0, 10)
 }
-
-export interface WgerEquipment {
-  id: number
-  name: string
-}
-
-export interface WgerCategory {
-  id: number
-  name: string
-}
-
-// Define a type for the raw exercise object returned by the API
-interface RawWgerExercise {
-  id: number;
-  name: string;
-  muscles: { name: string }[];
-  equipment: { name: string }[];
-  description?: string;
-  difficulty?: string;
-  instructions?: string;
-  images?: {
-    id: number;
-    image: string;
-    is_main: boolean;
-  }[];
-}
-
-const FALLBACK_EXERCISES: Exercise[] = [
-  {
-    id: 1,
-    name: 'Push-ups',
-    muscles: ['chest', 'triceps', 'shoulders'],
-    equipment: ['bodyweight'],
-    description: 'A classic bodyweight exercise that targets the chest, triceps, and shoulders. Great for building upper body strength.',
-    difficulty: 'beginner',
-    instructions: [
-      'Start in a plank position with hands slightly wider than shoulders',
-      'Lower your body until your chest nearly touches the floor',
-      'Push back up to the starting position',
-      'Keep your core tight and body in a straight line'
-    ]
-  },
-  {
-    id: 2,
-    name: 'Squats',
-    muscles: ['quadriceps', 'glutes', 'hamstrings'],
-    equipment: ['bodyweight'],
-    description: 'A fundamental lower body exercise that targets the quadriceps, glutes, and hamstrings. Builds leg strength and mobility.',
-    difficulty: 'beginner',
-    instructions: [
-      'Stand with feet shoulder-width apart, toes slightly pointed out',
-      'Lower your hips back and down as if sitting in a chair',
-      'Keep your chest up and knees tracking over your toes',
-      'Return to standing by driving through your heels'
-    ]
-  },
-  {
-    id: 3,
-    name: 'Plank',
-    muscles: ['core', 'shoulders', 'back'],
-    equipment: ['bodyweight'],
-    description: 'An isometric core exercise that builds stability and strength throughout the entire core and shoulders.',
-    difficulty: 'beginner',
-    instructions: [
-      'Start in a push-up position on your forearms',
-      'Keep your body in a straight line from head to heels',
-      'Engage your core and avoid letting your hips sag',
-      'Hold the position while breathing normally'
-    ]
-  },
-  {
-    id: 4,
-    name: 'Lunges',
-    muscles: ['quadriceps', 'glutes', 'hamstrings'],
-    equipment: ['bodyweight'],
-    description: 'A unilateral leg exercise that improves balance, coordination, and leg strength.',
-    difficulty: 'beginner',
-    instructions: [
-      'Stand tall with feet hip-width apart',
-      'Step forward with one leg and lower your hips',
-      'Lower until both knees are bent at 90 degrees',
-      'Push back to starting position and repeat'
-    ]
-  },
-  {
-    id: 5,
-    name: 'Dumbbell Rows',
-    muscles: ['back', 'biceps', 'rear deltoids'],
-    equipment: ['dumbbell'],
-    description: 'A pulling exercise that targets the back muscles and biceps, helping to improve posture and upper body strength.',
-    difficulty: 'intermediate',
-    instructions: [
-      'Hold a dumbbell in one hand, place other hand on bench',
-      'Keep your back straight and parallel to the floor',
-      'Pull the dumbbell up to your ribcage',
-      'Lower with control and repeat'
-    ]
-  }
-];
 
 export class WGERService {
-  private BASE_URL = 'https://wger.de/api/v2'
-  private API_KEY = import.meta.env.VITE_WGER_API_KEY
+  private exerciseCache = new Map<string, Exercise[]>()
+  private lastCacheTime = 0
+  private readonly CACHE_DURATION = 30 * 60 * 1000 // 30 minutes
 
   async fetchExercises(filters: {
     muscles?: string[]
     equipment?: string[]
     language?: number
+    category?: string
+    limit?: number
   }): Promise<Exercise[]> {
+    // Generate cache key from filters
+    const cacheKey = JSON.stringify(filters);
+    const now = Date.now();
+    
+    // Check cache first
+    if (this.exerciseCache.has(cacheKey) && (now - this.lastCacheTime) < this.CACHE_DURATION) {
+      console.log('Returning cached WGER exercises');
+      return this.exerciseCache.get(cacheKey)!;
+    }
+
     try {
-      // First, fetch the basic exercise data
-      const response = await axios.get(`${this.BASE_URL}/exercise/`, {
-        params: {
-          ...filters,
-          language: filters.language || 2, // Default to English
-          limit: 50 // Reasonable limit to prevent over-fetching
-        },
-        headers: this.API_KEY ? { 'Authorization': `Token ${this.API_KEY}` } : {}
-      })
+      // Use backend proxy instead of direct API call
+      const response = await api.get('/api/wger/exercises', { params: filters });
+      const data = response.data;
       
-      console.log('WGER API Response sample:', response.data.results[0]);
+      if (!data.results || !Array.isArray(data.results)) {
+        throw new Error('Invalid response from WGER API');
+      }
       
-      // Transform exercises and fetch images for each
+      // Transform WGER exercises to our Exercise format
       const exercises = await Promise.all(
-        response.data.results.map(async (rawExercise: any) => {
-          const transformedExercise = this.transformExercise(rawExercise);
-          
-          // Fetch images for this exercise if available
-          if (rawExercise.exercise_base) {
-            try {
-              const imageResponse = await axios.get(`${this.BASE_URL}/exerciseimage/`, {
-                params: {
-                  exercise_base: rawExercise.exercise_base,
-                  limit: 5
-                },
-                headers: this.API_KEY ? { 'Authorization': `Token ${this.API_KEY}` } : {}
-              });
-              
-              if (imageResponse.data.results.length > 0) {
-                // Get the main image or first available image
-                const mainImage = imageResponse.data.results.find((img: any) => img.is_main) || imageResponse.data.results[0];
-                transformedExercise.imageUrl = `https://wger.de${mainImage.image}`;
-                console.log('Found image for', transformedExercise.name, ':', transformedExercise.imageUrl);
-              }
-            } catch (imageError) {
-              console.log('No images found for exercise:', transformedExercise.name);
-            }
+        data.results.map(async (wgerEx: any) => {
+          try {
+            // Get additional details
+            const detailsResponse = await this.getExerciseDetails(wgerEx.id);
+            return this.transformExercise(wgerEx, detailsResponse);
+          } catch (error) {
+            console.error(`Error fetching details for exercise ${wgerEx.id}:`, error);
+            return this.transformExercise(wgerEx);
           }
-          
-          return transformedExercise;
         })
       );
       
-      console.log('Transformed exercise sample with images:', exercises[0]);
+      // Cache the results
+      this.exerciseCache.set(cacheKey, exercises);
+      this.lastCacheTime = now;
+      
       return exercises;
     } catch (error) {
-      console.error('WGER API Error, using fallback exercises:', error)
-      return FALLBACK_EXERCISES
-    }
-  }
-
-  private transformExercise(rawExercise: any): Exercise {
-    return {
-      id: rawExercise.id,
-      name: rawExercise.name,
-      muscles: rawExercise.muscles || [],
-      equipment: rawExercise.equipment || [],
-      description: rawExercise.description || '',
-      difficulty: rawExercise.difficulty || 'intermediate',
-      instructions: rawExercise.instructions ? [rawExercise.instructions] : [],
-      imageUrl: undefined // Will be populated separately by fetchExercises
+      console.error('WGER API error:', error);
+      // Return comprehensive fallback data
+      return this.getFallbackExercises(filters.muscles?.[0]);
     }
   }
 
   async getExerciseById(id: number): Promise<Exercise | null> {
     try {
-      const response = await axios.get(`${this.BASE_URL}/exercise/${id}/`, {
-        headers: {
-          'Authorization': `Token ${this.API_KEY}`
-        }
-      })
-      return this.transformExercise(response.data)
-    } catch (error) {
-      console.error(`Error fetching exercise ${id}:`, error)
-      return null
-    }
-  }
-
-  async getMuscles(): Promise<{ id: number; name: string }[]> {
-    try {
-      const response = await axios.get(`${this.BASE_URL}/muscle/`, {
-        headers: {
-          'Authorization': `Token ${this.API_KEY}`
-        }
-      })
-      return response.data.results
-    } catch (error) {
-      console.error('Error fetching muscles:', error)
-      return []
-    }
-  }
-
-  async getEquipment(): Promise<{ id: number; name: string }[]> {
-    try {
-      const response = await axios.get(`${this.BASE_URL}/equipment/`, {
-        headers: {
-          'Authorization': `Token ${this.API_KEY}`
-        }
-      })
-      return response.data.results
-    } catch (error) {
-      console.error('Error fetching equipment:', error)
-      return []
-    }
-  }
-
-  async getCategories(): Promise<WgerCategory[]> {
-    const response = await axios.get(`${WGER_API_BASE_URL}/exercisecategory/`, {
-      headers: {
-        'Authorization': `Token ${import.meta.env.VITE_WGER_API_KEY}`
+      const response = await api.get(`/api/wger/exercise/${id}`);
+      const data = response.data;
+      
+      if (!data) {
+        throw new Error('Exercise not found');
       }
-    })
-    return response.data
+      
+      return this.transformExercise(data);
+    } catch (error) {
+      console.error(`Error fetching exercise ${id}:`, error);
+      return null;
+    }
+  }
+
+  async searchExerciseByName(name: string): Promise<Exercise | null> {
+    if (!name || name.trim().length === 0) {
+      return null;
+    }
+
+    // Clean the search term
+    const searchTerm = name.trim().toLowerCase();
+    
+    // First check comprehensive database for exact match
+    const localExercise = COMPREHENSIVE_EXERCISE_DATABASE.find(ex => 
+      ex.name.toLowerCase() === searchTerm ||
+      ex.name.toLowerCase().includes(searchTerm) ||
+      searchTerm.includes(ex.name.toLowerCase())
+    );
+    
+    if (localExercise) {
+      console.log('Found exercise in comprehensive database:', localExercise.name);
+      return this.convertComprehensiveToExercise(localExercise);
+    }
+
+    try {
+      // Search using backend proxy
+      const response = await api.get('/api/wger/search', { 
+        params: { term: searchTerm, language: 2 } 
+      });
+      const data = response.data;
+      
+      if (data.suggestions && data.suggestions.length > 0) {
+        // Return the first matching result
+        const exercise = data.suggestions[0].data;
+        return this.transformExercise(exercise);
+      }
+      
+      // No results from API, use fallback
+      return this.findFallbackExercise(name);
+    } catch (error) {
+      console.error('WGER search error:', error);
+      return this.findFallbackExercise(name);
+    }
+  }
+
+  private async getExerciseDetails(exerciseId: number): Promise<any> {
+    try {
+      const response = await api.get(`/api/wger/exercise/${exerciseId}`);
+      return response.data;
+    } catch (error) {
+      console.error(`Error fetching exercise details for ${exerciseId}:`, error);
+      return null;
+    }
+  }
+
+  private transformExercise(rawExercise: any, details?: any): Exercise {
+    const exercise = details || rawExercise;
+    
+    // Extract exercise name from translations or other sources
+    let exerciseName = '';
+    
+    // Check for translations first (WGER API structure)
+    if (exercise.translations && exercise.translations.length > 0) {
+      exerciseName = exercise.translations[0].name;
+    } else if (exercise.name) {
+      exerciseName = exercise.name;
+    } else if (exercise.exercise_name) {
+      exerciseName = exercise.exercise_name;
+    } else if (exercise.exercise?.name) {
+      exerciseName = exercise.exercise.name;
+    }
+    
+    // Map muscles to our muscle groups
+    const muscleGroups: MuscleGroup[] = [];
+    const muscles = exercise.muscles || [];
+    muscles.forEach((muscle: any) => {
+      const muscleId = typeof muscle === 'object' ? muscle.id : muscle;
+      const group = MUSCLE_GROUP_MAP[muscleId];
+      if (group && !muscleGroups.includes(group)) {
+        muscleGroups.push(group);
+      }
+    });
+    
+    // Map equipment to our equipment types
+    const equipment: Equipment[] = [];
+    const equipmentList = exercise.equipment || [];
+    equipmentList.forEach((equip: any) => {
+      const equipId = typeof equip === 'object' ? equip.id : equip;
+      const equipType = EQUIPMENT_MAP[equipId];
+      if (equipType && !equipment.includes(equipType)) {
+        equipment.push(equipType);
+      }
+    });
+    
+    // Default to bodyweight if no equipment specified
+    if (equipment.length === 0) {
+      equipment.push('bodyweight');
+    }
+    
+    // Default to fullBody if no muscle groups found
+    if (muscleGroups.length === 0) {
+      muscleGroups.push('fullBody');
+    }
+    
+    // Get images
+    let imageUrl: string | undefined;
+    if (exercise.images && exercise.images.length > 0) {
+      imageUrl = exercise.images[0].image;
+    }
+    
+    // Get instructions from description or translations
+    const instructions: string[] = [];
+    let description = '';
+    
+    if (exercise.translations && exercise.translations.length > 0) {
+      description = exercise.translations[0].description || '';
+    } else {
+      description = exercise.description || '';
+    }
+    
+    if (description) {
+      // Clean HTML tags and split into instructions
+      const cleanDescription = description.replace(/<[^>]*>/g, '').trim();
+      const steps = cleanDescription.split(/\d+\.|Step \d+:|•|\n\n|\n-/);
+      steps.forEach((step: string) => {
+        const cleaned = step.trim();
+        if (cleaned.length > 10) {
+          instructions.push(cleaned);
+        }
+      });
+    }
+    
+    // If still no exercise name, create a meaningful one
+    if (!exerciseName || exerciseName.trim() === '') {
+      const primaryMuscle = muscleGroups[0] || 'fullBody';
+      const primaryEquipment = equipment[0] || 'bodyweight';
+      
+      // Create more specific names based on category and muscles
+      if (exercise.category?.name) {
+        exerciseName = `${exercise.category.name} ${primaryEquipment} Exercise`;
+      } else {
+        exerciseName = `${primaryMuscle} ${primaryEquipment} Exercise`;
+      }
+    }
+
+    return {
+      id: String(exercise.id || exercise.uuid || `wger-${Date.now()}`),
+      name: exerciseName,
+      description: description,
+      muscleGroups,
+      equipment,
+      difficulty: this.mapDifficulty(exercise.difficulty),
+      instructions: instructions.length > 0 ? instructions : ['Perform the exercise with proper form'],
+      imageUrl,
+      videoUrl: exercise.videos?.[0]?.video
+    };
+  }
+
+  private mapDifficulty(wgerDifficulty?: string): 'beginner' | 'intermediate' | 'advanced' {
+    if (!wgerDifficulty) return 'intermediate';
+    
+    const difficultyMap: Record<string, 'beginner' | 'intermediate' | 'advanced'> = {
+      'easy': 'beginner',
+      'beginner': 'beginner',
+      'medium': 'intermediate',
+      'intermediate': 'intermediate',
+      'hard': 'advanced',
+      'advanced': 'advanced'
+    };
+    
+    return difficultyMap[wgerDifficulty.toLowerCase()] || 'intermediate';
+  }
+
+  private convertComprehensiveToExercise(compEx: ComprehensiveExercise): Exercise {
+    return {
+      id: compEx.id,
+      name: compEx.name,
+      description: compEx.description,
+      muscleGroups: [compEx.primaryMuscle] as MuscleGroup[],
+      equipment: compEx.equipment as Equipment[],
+      difficulty: compEx.difficulty as 'beginner' | 'intermediate' | 'advanced',
+      instructions: compEx.instructions,
+      imageUrl: compEx.imageUrl,
+      videoUrl: compEx.videoUrl
+    };
+  }
+
+  private findFallbackExercise(name: string): Exercise | null {
+    const searchTerm = name.toLowerCase();
+    
+    // Search in comprehensive database
+    const exercise = COMPREHENSIVE_EXERCISE_DATABASE.find(ex => 
+      ex.name.toLowerCase().includes(searchTerm) ||
+      searchTerm.includes(ex.name.toLowerCase())
+    );
+    
+    if (exercise) {
+      return this.convertComprehensiveToExercise(exercise);
+    }
+    
+    // Try to find by keywords
+    const keywords = searchTerm.split(' ');
+    for (const keyword of keywords) {
+      const found = COMPREHENSIVE_EXERCISE_DATABASE.find(ex => 
+        ex.name.toLowerCase().includes(keyword) ||
+        ex.primaryMuscle.toLowerCase().includes(keyword) ||
+        ex.equipment.some(e => e.toLowerCase().includes(keyword))
+      );
+      
+      if (found) {
+        return this.convertComprehensiveToExercise(found);
+      }
+    }
+    
+    return null;
+  }
+
+  private getFallbackExercises(muscle?: string): Exercise[] {
+    const muscleGroup = muscle?.toLowerCase() || 'fullBody';
+    const exercises = FALLBACK_EXERCISES[muscleGroup] || FALLBACK_EXERCISES.fullBody;
+    
+    return exercises.map(ex => this.convertComprehensiveToExercise(ex));
+  }
+
+  // Utility methods
+  async fetchMuscles(): Promise<WgerMuscle[]> {
+    try {
+      const response = await api.get('/api/wger/muscles');
+      return response.data.results || [];
+    } catch (error) {
+      console.error('Error fetching muscles:', error);
+      return [];
+    }
+  }
+
+  async fetchEquipment(): Promise<WgerEquipment[]> {
+    try {
+      const response = await api.get('/api/wger/equipment');
+      return response.data.results || [];
+    } catch (error) {
+      console.error('Error fetching equipment:', error);
+      return [];
+    }
+  }
+
+  async fetchCategories(): Promise<WgerCategory[]> {
+    try {
+      const response = await api.get('/api/wger/categories');
+      return response.data.results || [];
+    } catch (error) {
+      console.error('Error fetching categories:', error);
+      return [];
+    }
   }
 }
 
-export const wgerService = new WGERService() 
+// Export singleton instance
+export const wgerService = new WGERService();

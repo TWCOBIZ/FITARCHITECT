@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import axios from 'axios'
+import { api } from '../services/api'
 import { AIGeneratedPlan } from '../contexts/WorkoutContext'
 import { toast } from 'react-hot-toast'
 
@@ -17,10 +17,7 @@ export function useWorkoutPlans() {
   return useQuery({
     queryKey: workoutKeys.plans(),
     queryFn: async (): Promise<AIGeneratedPlan[]> => {
-      const token = localStorage.getItem('token')
-      const response = await axios.get('/api/workout-plans', {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      })
+      const response = await api.get('/api/workout-plans')
       return response.data
     },
     staleTime: 5 * 60 * 1000, // Consider data fresh for 5 minutes
@@ -34,16 +31,13 @@ export function useSaveWorkoutPlan() {
   
   return useMutation({
     mutationFn: async (plan: AIGeneratedPlan): Promise<AIGeneratedPlan> => {
-      const token = localStorage.getItem('token')
       const payload = {
         ...plan,
         isDefault: false,
         completed: false,
       }
       
-      const response = await axios.post('/api/workout-plans', payload, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      })
+      const response = await api.post('/api/workout-plans', payload)
       
       return response.data
     },
@@ -68,11 +62,7 @@ export function useDeleteWorkoutPlan() {
   
   return useMutation({
     mutationFn: async (planId: string): Promise<void> => {
-      const token = localStorage.getItem('token')
-      await axios.delete('/api/workout-plans', {
-        data: { id: planId },
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      })
+      await api.delete(`/api/workout-plans/${planId}`)
     },
     onSuccess: (_, planId) => {
       // Remove the deleted plan from cache
@@ -95,12 +85,8 @@ export function useCompleteWorkoutPlan() {
   
   return useMutation({
     mutationFn: async (planId: string): Promise<AIGeneratedPlan> => {
-      const token = localStorage.getItem('token')
-      const response = await axios.patch('/api/workout-plans', 
-        { id: planId, completed: true }, 
-        {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        }
+      const response = await api.patch('/api/workout-plans', 
+        { id: planId, completed: true }
       )
       return response.data
     },
@@ -129,12 +115,8 @@ export function useGenerateWorkoutPlan() {
   
   return useMutation({
     mutationFn: async (userProfile: any): Promise<AIGeneratedPlan> => {
-      const token = localStorage.getItem('token')
-      const response = await axios.post('/api/workout-plans/generate', 
-        { userProfile },
-        {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        }
+      const response = await api.post('/api/workout-plans/generate', 
+        { userProfile }
       )
       return response.data
     },

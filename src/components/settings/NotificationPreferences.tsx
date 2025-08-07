@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { toast } from 'react-hot-toast'
 import { FaBell, FaTelegram, FaClock, FaChartLine, FaRunning, FaPaperPlane } from 'react-icons/fa'
 import { cardAnimations, staggerAnimations, animateWithReducedMotion, setUserMotionPreference, notificationAnimations } from '../../utils/animations'
-import { TelegramService } from '../../services/telegramService'
+import TelegramService from '../../services/telegramService'
 import axios from 'axios'
 
 interface NotificationPreferences {
@@ -70,7 +70,7 @@ const NotificationPreferences: React.FC = () => {
 
       if (sectionRefs.current.length > 0) {
         animateWithReducedMotion(
-          () => staggerAnimations.fadeIn(sectionRefs.current.filter(Boolean) as HTMLElement[]),
+          () => staggerAnimations.fadeIn(sectionRefs.current.filter(Boolean) as HTMLElement[]) as any,
           () => {}
         )
       }
@@ -121,8 +121,8 @@ ${preferences.motivationMessages ? '✅ Motivation messages\n' : '❌ Motivation
         const telegramService = TelegramService.getInstance()
         const result = await telegramService.validateChatId(preferences.telegramChatId)
         
-        if (!result.success) {
-          toast.error(result.error?.message || 'Invalid Telegram Chat ID')
+        if (!result.valid) {
+          toast.error(result.error || 'Invalid Telegram Chat ID')
           setIsLoading(false)
           return
         }

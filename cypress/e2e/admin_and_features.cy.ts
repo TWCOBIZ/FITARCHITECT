@@ -12,10 +12,11 @@ describe('Admin & Feature Access E2E', () => {
 
   it('Logs in as admin and accesses admin dashboard', () => {
     cy.visit('/')
-    cy.contains('LOGIN').click()
-    cy.get('input[type="email"]').type(adminUser.email)
-    cy.get('input[type="password"]').type(adminUser.password)
-    cy.contains('Sign in').click()
+    cy.wait(8000)
+    cy.get('[data-testid="splash-login-button"]', { timeout: 10000 }).should('be.visible').click()
+    cy.get('[data-testid="login-email"]').type(adminUser.email)
+    cy.get('[data-testid="login-password"]').type(adminUser.password)
+    cy.get('[data-testid="login-submit"]').click()
     cy.url().should('include', '/dashboard')
     cy.contains('Admin Dashboard').click()
     cy.url().should('include', '/admin')
@@ -24,12 +25,13 @@ describe('Admin & Feature Access E2E', () => {
 
   it('Feature gating: free user cannot access premium features', () => {
     cy.visit('/')
-    cy.contains('START YOUR JOURNEY').click()
+    cy.wait(8000)
+    cy.get('[data-testid="splash-start-your-journey-button"]', { timeout: 10000 }).should('be.visible').click()
     const email = `free_${Date.now()}@example.com`
-    cy.get('input[type="text"]').type('Free User')
-    cy.get('input[type="email"]').type(email)
-    cy.get('input[type="password"]').type('FreePass123!')
-    cy.contains('Create Account').click()
+    cy.get('[data-testid="register-name"]').type('Free User')
+    cy.get('[data-testid="register-email"]').type(email)
+    cy.get('[data-testid="register-password"]').type('FreePass123!')
+    cy.get('[data-testid="register-submit"]').click()
     cy.url().should('include', '/parq')
     cy.visit('/premium-feature')
     cy.contains('Upgrade to unlock this feature')
@@ -37,11 +39,12 @@ describe('Admin & Feature Access E2E', () => {
 
   it('Premium user can access all features after upgrade', () => {
     cy.visit('/')
-    cy.contains('START YOUR JOURNEY').click()
-    cy.get('input[type="text"]').type('Premium User')
-    cy.get('input[type="email"]').type(premiumUser.email)
-    cy.get('input[type="password"]').type(premiumUser.password)
-    cy.contains('Create Account').click()
+    cy.wait(8000)
+    cy.get('[data-testid="splash-start-your-journey-button"]', { timeout: 10000 }).should('be.visible').click()
+    cy.get('[data-testid="register-name"]').type('Premium User')
+    cy.get('[data-testid="register-email"]').type(premiumUser.email)
+    cy.get('[data-testid="register-password"]').type(premiumUser.password)
+    cy.get('[data-testid="register-submit"]').click()
     cy.url().should('include', '/parq')
     // Simulate upgrade (this step may need to be replaced with Stripe test mode or backend call)
     cy.request('POST', '/api/upgrade', { email: premiumUser.email, plan: 'premium' })
@@ -51,10 +54,11 @@ describe('Admin & Feature Access E2E', () => {
 
   it('Core features: workout logging, meal planning, analytics, calorie tracking', () => {
     cy.visit('/')
-    cy.contains('LOGIN').click()
-    cy.get('input[type="email"]').type(adminUser.email)
-    cy.get('input[type="password"]').type(adminUser.password)
-    cy.contains('Sign in').click()
+    cy.wait(8000)
+    cy.get('[data-testid="splash-login-button"]', { timeout: 10000 }).should('be.visible').click()
+    cy.get('[data-testid="login-email"]').type(adminUser.email)
+    cy.get('[data-testid="login-password"]').type(adminUser.password)
+    cy.get('[data-testid="login-submit"]').click()
     cy.url().should('include', '/dashboard')
     cy.contains('Log Workout').click()
     cy.get('input[name="exercise"]').type('Bench Press')

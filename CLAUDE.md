@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Full Development Environment
 ```bash
-npm run dev:all          # Start frontend (Vite) + backend (ts-node) concurrently
+npm run dev:all          # Start frontend (Vite) + backend (ts-node) + ensure database is running
 npm run dev              # Frontend only (Vite dev server on port 5173)
 npx ts-node backend/src/server.ts  # Backend only (Express server on port 3001)
 ```
@@ -26,11 +26,13 @@ npm run test:playwright # Playwright tests
 
 ### Database Operations
 ```bash
+npm run db:setup        # Complete database setup (PostgreSQL + schema + seeding)
+npm run db:ensure       # Ensure PostgreSQL is running (used by dev:all)
+npm run db:seed         # Seed database with admin and test users
 npx prisma generate     # Generate Prisma client after schema changes
 npx prisma db push      # Push schema changes to database
 npx prisma migrate dev  # Create and apply new migration
 npx prisma studio       # Open Prisma Studio database browser
-./scripts/setup-db.sh   # Initial database setup script
 ```
 
 ### Backend Only Commands

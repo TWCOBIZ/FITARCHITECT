@@ -243,9 +243,9 @@ const ManualFoodEntry: React.FC<ManualFoodEntryProps> = ({ onSubmit, onCancel })
 
     setIsSearching(true)
     try {
-      const results = await openFoodFactsService.searchFood(query)
+      const results = await openFoodFactsService.searchFoods(query)
       // Apply filters
-      const filteredResults = results.filter(food => {
+      const filteredResults = results.foods.filter(food => {
         // Basic nutritional filters
         if (filters.minCalories && food.calories < filters.minCalories) return false
         if (filters.maxCalories && food.calories > filters.maxCalories) return false
@@ -551,27 +551,80 @@ const ManualFoodEntry: React.FC<ManualFoodEntryProps> = ({ onSubmit, onCancel })
         
         {/* Search Results */}
         {searchResults.length > 0 && (
-          <div className="mt-2 bg-gray-800 rounded-lg max-h-48 overflow-y-auto">
+          <div className="mt-2 bg-gray-800 rounded-lg max-h-64 overflow-y-auto">
             {searchResults.map((food, index) => (
               <button
                 key={index}
                 onClick={() => handleSelectFood(food)}
-                className="w-full px-4 py-2 text-left hover:bg-gray-700 transition-colors"
+                className="w-full px-4 py-3 text-left hover:bg-gray-700 transition-colors border-b border-gray-700 last:border-b-0"
               >
-                <div className="font-medium">{food.name}</div>
-                <div className="text-sm text-gray-400">
-                  {food.calories} cal | {food.protein}g protein | {food.carbs}g carbs | {food.fat}g fat
+                <div className="flex justify-between items-start">
+                  <div className="flex-1">
+                    <div className="font-medium text-white">{food.name}</div>
+                    {food.brand && (
+                      <div className="text-xs text-gray-500 mb-1">{food.brand}</div>
+                    )}
+                    <div className="text-sm text-gray-400">
+                      {food.calories} cal | {food.protein}g protein | {food.carbs}g carbs | {food.fat}g fat
+                    </div>
+                    {(food as any).dataSource && (
+                      <div className="text-xs text-blue-400 mt-1">
+                        Source: {(food as any).dataSource}
+                      </div>
+                    )}
+                  </div>
+                  {food.image && (
+                    <img 
+                      src={food.image} 
+                      alt={food.name}
+                      className="w-12 h-12 object-cover rounded ml-3"
+                      onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                    />
+                  )}
                 </div>
               </button>
             ))}
           </div>
         )}
+
+        {/* No Results Message */}
+        {searchQuery.length >= 2 && !isSearching && searchResults.length === 0 && (
+          <div className="mt-2 bg-gray-800 rounded-lg p-4 text-center">
+            <div className="text-gray-400 mb-2">No foods found for "{searchQuery}"</div>
+            <div className="text-sm text-gray-500">
+              Try searching for basic ingredients like "chicken", "rice", or "apple"
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Quick Add Common Foods - Now using real API data */}
+      <div className="mb-6">
+        <h3 className="text-sm font-medium text-gray-400 mb-2">Quick Add Popular Foods</h3>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
+          {[
+            'Banana', 'Apple', 'Chicken Breast', 'Greek Yogurt', 
+            'Oatmeal', 'Almonds', 'Brown Rice', 'Broccoli'
+          ].map((foodName, index) => (
+            <button
+              key={index}
+              onClick={() => handleSearch(foodName)}
+              className="bg-green-800 hover:bg-green-700 rounded-lg p-2 text-left transition-colors"
+            >
+              <div className="font-medium text-sm truncate text-white">{foodName}</div>
+              <div className="text-xs text-green-200">Search & Add</div>
+            </button>
+          ))}
+        </div>
+        <p className="text-xs text-gray-500 mt-2">
+          * Popular foods now search real nutritional databases for accurate data
+        </p>
       </div>
 
       {/* Frequent Foods */}
       {frequentFoods.length > 0 && (
         <div className="mb-6">
-          <h3 className="text-sm font-medium text-gray-400 mb-2">Frequently Used Foods</h3>
+          <h3 className="text-sm font-medium text-gray-400 mb-2">Your Frequent Foods</h3>
           <div className="grid grid-cols-2 gap-2">
             {frequentFoods.map((food, index) => (
               <div key={index} className="bg-gray-800 rounded-lg p-2 relative group">

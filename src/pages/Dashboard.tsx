@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { dashboardFeatures } from '../config/dashboardFeatures'
 import FeatureCard from '../components/dashboard/FeatureCard'
+import TrialStatusBanner from '../components/subscription/TrialStatusBanner'
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate()
@@ -74,9 +75,14 @@ const Dashboard: React.FC = () => {
           </div>
         )}
         {/* PAR-Q Prompt Banner */}
-        {user && !user.parqCompleted && !isGuest && (
+        {user && !user.parqCompleted && (
           <div className="bg-blue-500/10 border border-blue-500 text-blue-200 px-4 py-3 rounded-lg mb-8 flex items-center justify-between">
-            <span>Complete your PAR-Q assessment to unlock all features.</span>
+            <span>
+              {isGuest 
+                ? "Complete your PAR-Q assessment to unlock premium features for 3 days!" 
+                : "Complete your PAR-Q assessment to unlock all features."
+              }
+            </span>
             <button
               className="bg-blue-500 text-black px-4 py-2 rounded-md font-semibold ml-4 hover:bg-blue-400 transition-colors"
               onClick={() => {
@@ -88,6 +94,32 @@ const Dashboard: React.FC = () => {
             </button>
           </div>
         )}
+        
+        {/* Trial Status Banner for Free Users */}
+        <TrialStatusBanner className="mb-8" />
+        
+        {/* Premium Trial Banner for Guests */}
+        {user && isGuest && user.parqCompleted && subscriptionTier === 'premium' && (
+          <div className="bg-gradient-to-r from-purple-500/20 to-pink-500/20 border border-purple-500 text-purple-200 px-4 py-3 rounded-lg mb-8 flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <span className="text-2xl">⭐</span>
+              <div>
+                <div className="font-semibold">Premium Trial Active!</div>
+                <div className="text-sm text-purple-300">You have access to all premium features for 3 days</div>
+              </div>
+            </div>
+            <button
+              className="bg-purple-500 text-white px-4 py-2 rounded-lg font-semibold hover:bg-purple-600 transition-colors"
+              onClick={() => {
+                trackEvent('trial_upgrade_cta')
+                navigate('/register')
+              }}
+            >
+              Create Account
+            </button>
+          </div>
+        )}
+        
         {/* Empty State for New Users */}
         {user && !isGuest && !user.parqCompleted && (
           <div className="bg-gray-900 border border-gray-800 text-gray-200 px-4 py-6 rounded-lg mb-8 text-center">
@@ -173,24 +205,128 @@ const Dashboard: React.FC = () => {
         <div className="mt-12">
           <h2 className="text-2xl font-semibold mb-6">Quick Actions</h2>
           <div className="grid md:grid-cols-3 gap-4">
-            <button
-              onClick={() => navigate('/workouts')}
-              className="bg-blue-600 hover:bg-blue-700 text-white py-3 px-6 rounded-lg transition-colors"
-            >
-              Start Workout
-            </button>
-            <button
-              onClick={() => navigate('/nutrition')}
-              className="bg-green-600 hover:bg-green-700 text-white py-3 px-6 rounded-lg transition-colors"
-            >
-              Log Meal
-            </button>
-            <button
-              onClick={() => navigate('/meal-planning')}
-              className="bg-purple-600 hover:bg-purple-700 text-white py-3 px-6 rounded-lg transition-colors"
-            >
-              Meal Planning
-            </button>
+            {/* Workout Quick Action */}
+            {(() => {
+              const workoutFeature = dashboardFeatures.find(f => f.key === 'workout');
+              const isLocked = workoutFeature && isFeatureLocked(workoutFeature);
+              const lockReason = workoutFeature && getLockReason(workoutFeature);
+              
+              return (
+                <div className="relative">
+                  <button
+                    onClick={() => {
+                      if (isLocked) {
+                        setShowUpgradeModal(true);
+                      } else {
+                        navigate('/workouts');
+                      }
+                    }}
+                    className={`w-full py-3 px-6 rounded-lg transition-colors relative ${
+                      isLocked 
+                        ? 'bg-gray-600 hover:bg-gray-500 cursor-not-allowed' 
+                        : 'bg-blue-600 hover:bg-blue-700'
+                    } text-white`}
+                    disabled={isLocked}
+                  >
+                    <span className={isLocked ? 'opacity-50' : ''}>
+                      💪 Start Workout
+                    </span>
+                    {isLocked && (
+                      <div className="absolute top-1 right-1">
+                        🔒
+                      </div>
+                    )}
+                  </button>
+                  {isLocked && (
+                    <p className="text-xs text-gray-400 mt-1 text-center">
+                      {lockReason}
+                    </p>
+                  )}
+                </div>
+              );
+            })()}
+
+            {/* Nutrition Quick Action */}
+            {(() => {
+              const nutritionFeature = dashboardFeatures.find(f => f.key === 'nutrition');
+              const isLocked = nutritionFeature && isFeatureLocked(nutritionFeature);
+              const lockReason = nutritionFeature && getLockReason(nutritionFeature);
+              
+              return (
+                <div className="relative">
+                  <button
+                    onClick={() => {
+                      if (isLocked) {
+                        setShowUpgradeModal(true);
+                      } else {
+                        navigate('/nutrition');
+                      }
+                    }}
+                    className={`w-full py-3 px-6 rounded-lg transition-colors relative ${
+                      isLocked 
+                        ? 'bg-gray-600 hover:bg-gray-500 cursor-not-allowed' 
+                        : 'bg-green-600 hover:bg-green-700'
+                    } text-white`}
+                    disabled={isLocked}
+                  >
+                    <span className={isLocked ? 'opacity-50' : ''}>
+                      🥗 Log Meal
+                    </span>
+                    {isLocked && (
+                      <div className="absolute top-1 right-1">
+                        🔒
+                      </div>
+                    )}
+                  </button>
+                  {isLocked && (
+                    <p className="text-xs text-gray-400 mt-1 text-center">
+                      {lockReason}
+                    </p>
+                  )}
+                </div>
+              );
+            })()}
+
+            {/* Meal Planning Quick Action */}
+            {(() => {
+              const mealFeature = dashboardFeatures.find(f => f.key === 'meal');
+              const isLocked = mealFeature && isFeatureLocked(mealFeature);
+              const lockReason = mealFeature && getLockReason(mealFeature);
+              
+              return (
+                <div className="relative">
+                  <button
+                    onClick={() => {
+                      if (isLocked) {
+                        setShowUpgradeModal(true);
+                      } else {
+                        navigate('/meal-planning');
+                      }
+                    }}
+                    className={`w-full py-3 px-6 rounded-lg transition-colors relative ${
+                      isLocked 
+                        ? 'bg-gray-600 hover:bg-gray-500 cursor-not-allowed' 
+                        : 'bg-purple-600 hover:bg-purple-700'
+                    } text-white`}
+                    disabled={isLocked}
+                  >
+                    <span className={isLocked ? 'opacity-50' : ''}>
+                      🍽️ Meal Planning
+                    </span>
+                    {isLocked && (
+                      <div className="absolute top-1 right-1">
+                        🔒
+                      </div>
+                    )}
+                  </button>
+                  {isLocked && (
+                    <p className="text-xs text-gray-400 mt-1 text-center">
+                      {lockReason}
+                    </p>
+                  )}
+                </div>
+              );
+            })()}
           </div>
         </div>
       </div>

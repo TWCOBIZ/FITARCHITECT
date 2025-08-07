@@ -5,6 +5,7 @@ import { motion } from 'framer-motion'
 import { workoutService } from '../../services/workoutService'
 import { useWorkout } from '../../contexts/WorkoutContext'
 import { api } from '../../services/api'
+import { UserProfile } from '../../types/user'
 
 interface ParqQuestion {
   id: number
@@ -58,7 +59,7 @@ const PARQ_QUESTIONS: ParqQuestion[] = [
 export const ParqForm: React.FC = () => {
   const navigate = useNavigate()
   const location = useLocation()
-  const { updateParqStatus, user, subscriptionTier, updateProfile } = useAuth()
+  const { updateParqStatus, user, subscriptionTier, updateProfile, updateSubscription, parqCompleted } = useAuth()
   const { setCurrentPlan } = useWorkout()
   const [answers, setAnswers] = useState<Record<number, boolean>>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -66,6 +67,14 @@ export const ParqForm: React.FC = () => {
   const [showWarning, setShowWarning] = useState(false)
   const [previousAnswers, setPreviousAnswers] = useState<Record<number, boolean> | null>(null)
   const [adminNotes, setAdminNotes] = useState<string[]>([])
+
+  // If user has already completed PAR-Q, redirect to dashboard or previous location
+  useEffect(() => {
+    if (parqCompleted && user) {
+      const from = location.state?.from?.pathname || '/dashboard'
+      navigate(from, { replace: true })
+    }
+  }, [parqCompleted, user, navigate, location])
 
   useEffect(() => {
     // Fetch previous answers if they exist (only for registered users)
@@ -118,14 +127,47 @@ export const ParqForm: React.FC = () => {
     }
 
     try {
-      // For registered users, save to backend
-      if (!user?.isGuest && user?.type !== 'guest') {
-        await api.patch('/api/parq-response', { answers })
-      }
+      // For all users, save to backend (including guests)
+      await api.patch('/api/parq-response', { answers })
       
-      // For all users (including guests), update local state
+      // Update local state
       updateParqStatus(true)
       updateProfile({ parqAnswers: answers })
+      
+      // For guests, check if they received a premium trial
+      if (user?.isGuest || user?.type === 'guest') {
+        // Fetch updated user data to get trial status
+        try {
+          const userResponse = await api.get('/api/profile')
+          const updatedUser = userResponse.data
+          
+          // Update subscription status if trial was granted
+          if (updatedUser.tier === 'premium' || updatedUser.subscriptionStatus === 'active') {
+            updateProfile({
+              ...updatedUser,
+              parqAnswers: answers,
+              parqCompleted: true
+            })
+            
+            // Update subscription tier
+            if (updatedUser.tier) {
+              updateSubscription(updatedUser.tier)
+            }
+            
+            // Show success message about trial
+            const event = new CustomEvent('show-toast', {
+              detail: { 
+                message: '🎉 PAR-Q completed! You now have a 3-day premium trial!', 
+                type: 'success',
+                duration: 5000
+              }
+            });
+            window.dispatchEvent(event);
+          }
+        } catch (error) {
+          console.error('Failed to fetch updated user data:', error)
+        }
+      }
 
       // Check if user came from workout page and redirect back there
       const fromPath = location.state?.from;
@@ -138,22 +180,39 @@ export const ParqForm: React.FC = () => {
       if (user && (subscriptionTier === 'basic' || subscriptionTier === 'premium')) {
         try {
           // Use user profile data for workout generation
-          const profileData = user.profile ? {
+          const profileData: UserProfile = user.profile ? {
+            ...user.profile,
+            id: user.profile.id || user.id || 'temp-id',
+            email: user.email || 'temp@example.com',
+            firstName: user.profile.firstName || 'Guest',
+            lastName: user.profile.lastName || 'User',
             height: user.profile.height || 170,
             weight: user.profile.weight || 70,
-            age: user.profile.dateOfBirth ? new Date().getFullYear() - new Date(user.profile.dateOfBirth).getFullYear() : 30,
             gender: user.profile.gender || 'other',
-            fitnessGoals: user.profile.goals || [],
-            activityLevel: user.profile.fitnessLevel || 'beginner',
-            dietaryPreferences: []
+            goals: user.fitnessGoals || [],
+            fitnessLevel: (user.activityLevel as 'beginner' | 'intermediate' | 'advanced') || 'beginner',
+            availableEquipment: user.equipmentAvailability || ['bodyweight'],
+            preferredWorkoutDuration: user.profile.preferredWorkoutDuration || 30,
+            daysPerWeek: user.profile.daysPerWeek || 3,
+            dateOfBirth: user.profile.dateOfBirth || new Date('1990-01-01'),
+            createdAt: user.profile.createdAt || new Date(),
+            updatedAt: user.profile.updatedAt || new Date()
           } : {
+            id: user?.id || 'temp-id',
+            email: user?.email || 'temp@example.com',
+            firstName: 'Guest',
+            lastName: 'User',
             height: 170,
             weight: 70,
-            age: 30,
-            gender: 'other',
-            fitnessGoals: [],
-            activityLevel: 'beginner',
-            dietaryPreferences: []
+            gender: 'other' as const,
+            goals: [],
+            fitnessLevel: 'beginner' as const,
+            availableEquipment: ['bodyweight'],
+            preferredWorkoutDuration: 30,
+            daysPerWeek: 3,
+            dateOfBirth: new Date('1990-01-01'),
+            createdAt: new Date(),
+            updatedAt: new Date()
           }
           
           const plan = await workoutService.generateWorkoutPlan(profileData)

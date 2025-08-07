@@ -17,10 +17,12 @@ export const OpenAIProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setIsLoading(true)
     setError(null)
     try {
+      const token = localStorage.getItem('token')
       const response = await fetch('/api/openai', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...(token && { Authorization: `Bearer ${token}` }),
         },
         body: JSON.stringify({ prompt }),
       })
@@ -44,7 +46,7 @@ export const OpenAIProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setError(null)
     try {
       const token = localStorage.getItem('token')
-      const response = await fetch('/api/generate-meal-plan', {
+      const response = await fetch('/api/meal-plans/generate', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

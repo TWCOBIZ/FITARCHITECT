@@ -34,8 +34,8 @@ class ChatGPTService {
   private async getExercisesFromWger(muscleGroups: string[]): Promise<WgerExercise[]> {
     const exercises: WgerExercise[] = []
     for (const muscle of muscleGroups) {
-      const response = await wgerService.searchExercises(muscle)
-      exercises.push(...response)
+      const response = await wgerService.fetchExercises({ muscles: [muscle] })
+      exercises.push(...response as unknown as WgerExercise[])
     }
     return exercises
   }
@@ -48,9 +48,9 @@ class ChatGPTService {
       muscleGroups: [], // Will be populated from wgerExercise.muscles
       equipment: [], // Will be populated from wgerExercise.equipment
       difficulty: 'beginner', // Default, will be adjusted based on user profile
-      instructions: wgerExercise.comments.map(comment => comment.comment),
+      instructions: (wgerExercise.comments || []).map((comment: any) => typeof comment === 'string' ? comment : comment?.comment || ''),
       videoUrl: undefined,
-      imageUrl: wgerExercise.images[0]?.image
+      imageUrl: (wgerExercise as any).images?.[0]?.image
     }
   }
 
@@ -147,6 +147,7 @@ class ChatGPTService {
       description: 'A personalized workout plan based on your goals and preferences',
       duration: 4, // weeks
       workouts: [], // Will be populated from the parsed response
+      weeks: [], // Required property
       targetMuscleGroups: [], // Will be populated from the parsed response
       difficulty: 'beginner', // Will be adjusted based on user profile
       createdAt: new Date(),

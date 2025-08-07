@@ -10,6 +10,15 @@ export interface FoodEntry {
   dietaryRestrictions?: string[]
   allergens?: string[]
   ingredients?: string[]
+  // Additional properties used in services
+  fiber?: number
+  sugars?: number
+  sodium?: number
+  brand?: string
+  date?: string
+  mealType?: string
+  quantity?: number
+  imageUrl?: string
   nutritionFacts?: {
     fiber?: number
     sugar?: number

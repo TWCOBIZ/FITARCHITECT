@@ -10,17 +10,29 @@ import { ThemeProvider } from '../contexts/ThemeContext';
 import PanelLayout from '../components/admin/PanelLayout';
 import { Dialog } from '@headlessui/react';
 import ConfirmationModal from '../components/common/ConfirmationModal';
+import CustomExercisesPanel from '../components/admin/CustomExercisesPanel';
+import ExerciseMediaPanel from '../components/admin/ExerciseMediaPanel';
+import ExerciseRegistryPanel from '../components/admin/ExerciseRegistryPanel';
+import WorkoutBuilderPanel from '../components/admin/WorkoutBuilderPanel';
+import WorkoutTemplatesPanel from '../components/admin/WorkoutTemplatesPanel';
+import SettingsPanel from '../components/admin/SettingsPanel';
+import OverviewPanel from '../components/admin/OverviewPanel';
 
 const panels = [
-  { path: '', label: 'Overview' },
-  { path: 'users', label: 'Users' },
-  { path: 'subscriptions', label: 'Subscriptions' },
-  { path: 'analytics', label: 'Analytics' },
-  { path: 'parq', label: 'PAR-Q' },
-  { path: 'content', label: 'Content' },
-  { path: 'notifications', label: 'Notifications' },
-  { path: 'system', label: 'System Health' },
-  { path: 'settings', label: 'Settings' },
+  { path: '', label: 'Overview', icon: '📊' },
+  { path: 'exercise-registry', label: 'Exercise Registry', icon: '📚' },
+  { path: 'users', label: 'Users', icon: '👥' },
+  { path: 'subscriptions', label: 'Subscriptions', icon: '💳' },
+  { path: 'analytics', label: 'Analytics', icon: '📈' },
+  { path: 'parq', label: 'PAR-Q', icon: '📋' },
+  { path: 'content', label: 'Content', icon: '📝' },
+  { path: 'exercises', label: 'Exercises', icon: '💪' },
+  { path: 'workout-builder', label: 'Workout Builder', icon: '🏗️' },
+  { path: 'workout-templates', label: 'Workout Templates', icon: '📑' },
+  { path: 'exercise-media', label: 'Exercise Media', icon: '🎬' },
+  { path: 'notifications', label: 'Notifications', icon: '🔔' },
+  { path: 'system', label: 'System Health', icon: '⚡' },
+  { path: 'settings', label: 'Settings', icon: '⚙️' },
 ];
 
 type PanelPlaceholderProps = { label: string };
@@ -39,23 +51,33 @@ const UsersPanel: React.FC = () => {
   const [sort, setSort] = useState('createdAt-desc');
   const [editUser, setEditUser] = useState<any | null>(null);
   const [showEdit, setShowEdit] = useState(false);
-  const [selectedUsers, setSelectedUsers] = useState<number[]>([]);
+  const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [confirmModal, setConfirmModal] = useState<{isOpen: boolean, title: string, message: string, onConfirm: () => void} | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  const { logout, loading, isAuthenticated, user } = useAuth();
+  const { logout, isAuthenticated, user } = useAuth();
 
   const fetchUsers = () => {
     setUsersLoading(true);
     api.get('/api/admin/users')
-      .then(res => setUsers(res.data))
-      .catch(() => setError('Failed to load users'))
+      .then(res => {
+        // Handle both array and paginated response formats
+        const usersData = Array.isArray(res.data) 
+          ? res.data 
+          : res.data.users || [];
+        setUsers(usersData);
+      })
+      .catch(() => {
+        setError('Failed to load users');
+        // Ensure users is always an array even on error
+        setUsers([]);
+      })
       .finally(() => setUsersLoading(false));
   };
 
   useEffect(() => { fetchUsers(); }, []);
 
-  // Filtering, sorting logic
-  const filtered = users.filter(u => {
+  // Filtering, sorting logic with safety guard
+  const filtered = (users || []).filter(u => {
     if (search && !(`${u.name} ${u.email}`.toLowerCase().includes(search.toLowerCase()))) return false;
     if (status !== 'all' && (status === 'active' ? !u.active : u.active)) return false;
     if (role !== 'all' && (role === 'admin' ? !u.isAdmin : u.isAdmin)) return false;
@@ -155,7 +177,7 @@ const UsersPanel: React.FC = () => {
     });
   };
 
-  const handleSelectUsers = (ids: number[]) => {
+  const handleSelectUsers = (ids: string[]) => {
     setSelectedUsers(ids);
   };
 
@@ -618,7 +640,7 @@ const SubscriptionsPanel: React.FC = () => {
               </table>
             </div>
             <div className="flex gap-2 justify-end mt-4">
-              <button onClick={handleChangePlan} className="px-3 py-2 bg-gray-600 hover:bg-gray-700 rounded text-white">Change Plan</button>
+              <button onClick={() => handleChangePlan('basic')} className="px-3 py-2 bg-gray-600 hover:bg-gray-700 rounded text-white">Change Plan</button>
               <button onClick={handleCancel} className="px-3 py-2 bg-red-600 hover:bg-red-700 rounded text-white">Cancel</button>
               <button onClick={handleRefund} className="px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded text-white">Refund</button>
               <button onClick={() => setShowDetails(false)} className="px-3 py-2 bg-gray-700 hover:bg-gray-800 rounded text-white">Close</button>
@@ -986,7 +1008,7 @@ const ParqPanel: React.FC = () => {
                 </ul>
               </div>
               <div className="flex gap-2 mt-4">
-                <button onClick={()=>handleFlag(Object.keys(selected.answers).filter(qid=>selected.answers[qid]))} className="px-3 py-1 bg-yellow-500 rounded text-black">Flag Yes Answers</button>
+                <button onClick={()=>handleFlag(Object.keys(selected.answers).filter(qid=>selected.answers[qid]).map(Number))} className="px-3 py-1 bg-yellow-500 rounded text-black">Flag Yes Answers</button>
                 <input value={note} onChange={e=>setNote(e.target.value)} placeholder="Add note" className="px-2 py-1 rounded bg-gray-800 text-white border border-gray-700" />
                 <button onClick={handleAddNote} className="px-3 py-1 bg-blue-600 rounded text-white">Add Note</button>
                 <button onClick={closeDetail} className="ml-auto px-3 py-1 bg-gray-700 rounded text-white">Close</button>
@@ -1590,15 +1612,15 @@ const StripeWebhookPanel: React.FC = () => {
 };
 
 const AdminDashboard = () => {
-  const { logout, loading, isAuthenticated, user } = useAuth();
+  const { logout, isAuthenticated, user } = useAuth();
   // Admin auth handled by unified context
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (!loading && !isAuthenticated) {
+    if (!isAuthenticated) {
       navigate('/admin/login');
     }
-  }, [loading, isAuthenticated, navigate]);
+  }, [isAuthenticated, navigate]);
 
   const handleLogout = () => {
     if (logout) {
@@ -1607,7 +1629,7 @@ const AdminDashboard = () => {
     }
   };
 
-  if (loading) {
+  if (!isAuthenticated) {
     return <div className="min-h-screen flex items-center justify-center bg-gray-900 text-white">Loading...</div>;
   }
 
@@ -1625,15 +1647,20 @@ const AdminDashboard = () => {
           <Breadcrumbs />
           <div className="flex-1 overflow-y-auto">
             <Routes>
-              <Route index element={<PanelLayout title="Overview">Overview panel coming soon.</PanelLayout>} />
+              <Route index element={<OverviewPanel />} />
+              <Route path="exercise-registry" element={<ExerciseRegistryPanel />} />
               <Route path="users" element={<UsersPanel />} />
               <Route path="subscriptions" element={<SubscriptionsPanel />} />
               <Route path="analytics" element={<AnalyticsPanel />} />
               <Route path="parq" element={<ParqPanel />} />
               <Route path="content" element={<ContentPanel />} />
+              <Route path="exercises" element={<CustomExercisesPanel />} />
+              <Route path="workout-builder" element={<WorkoutBuilderPanel />} />
+              <Route path="workout-templates" element={<WorkoutTemplatesPanel />} />
+              <Route path="exercise-media" element={<ExerciseMediaPanel />} />
               <Route path="notifications" element={<NotificationsPanel />} />
               <Route path="system" element={<SystemManagementPanel />} />
-              <Route path="settings" element={<PanelLayout title="Settings">Settings panel coming soon.</PanelLayout>} />
+              <Route path="settings" element={<SettingsPanel />} />
               <Route path="export" element={<DataExportPanel />} />
               <Route path="stripe-webhooks" element={<StripeWebhookPanel />} />
             </Routes>

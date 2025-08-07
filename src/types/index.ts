@@ -8,6 +8,7 @@ export interface User {
   parqCompleted?: boolean
   isAdmin?: boolean
   isGuest?: boolean
+  dietaryPreferences?: string[]
   profile?: {
     email: string
   }

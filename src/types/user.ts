@@ -1,22 +1,35 @@
 export interface UserProfile {
   id: string
   email: string
-  firstName: string
-  lastName: string
-  dateOfBirth: Date
-  gender: 'male' | 'female' | 'other'
-  height: number // in cm
-  weight: number // in kg
-  fitnessLevel: 'beginner' | 'intermediate' | 'advanced'
-  goals: string[]
-  availableEquipment: string[]
-  preferredWorkoutDuration: number // in minutes
-  daysPerWeek: number
+  name: string
+  firstName?: string
+  lastName?: string
+  dateOfBirth?: Date
+  gender: string
+  height?: number // in inches
+  weight?: number // in lbs
+  age?: number
+  fitnessLevel?: 'beginner' | 'intermediate' | 'advanced'
+  fitnessGoals: string[]
+  goals?: string[]
+  activityLevel: string
+  dietaryPreferences: string[]
+  availableEquipment?: string[]
+  equipmentAvailability: string[]
+  preferredWorkoutDuration?: string | number // in minutes
+  daysPerWeek?: number
   medicalConditions?: string[]
   injuries?: string[]
   createdAt: Date
   updatedAt: Date
-  parqAnswers?: Record<number, boolean>
+  parqAnswers?: any
+  parqCompleted: boolean
+  subscriptionStatus?: string
+  tier?: string
+  isAdmin?: boolean
+  type?: string
+  trialEndDate?: Date | string
+  freeWorkoutTrialUsed?: boolean
 }
 
 export interface UserPreferences {
@@ -27,15 +40,16 @@ export interface UserPreferences {
     achievementAlerts: boolean
   }
   units: {
-    weight: 'kg' | 'lbs'
-    height: 'cm' | 'ft' | 'inches'
-    distance: 'km' | 'mi'
+    weight: 'lbs' // Default to imperial
+    height: 'inches' // Default to imperial 
+    distance: 'mi' // Default to imperial
   }
 }
 
 export interface User {
   id: string
   email: string
+  name?: string
   profile: UserProfile
   preferences: UserPreferences
   subscription?: {
@@ -44,9 +58,26 @@ export interface User {
     startDate: Date
     endDate: Date
   }
+  subscriptionStatus?: 'active' | 'cancelled' | 'expired'
   parqCompleted: boolean
   createdAt: Date
   updatedAt: Date
   type?: 'guest' | 'registered'
   isGuest?: boolean
+  tier?: string
+  isAdmin?: boolean
+  active?: boolean
+  trialEndDate?: Date | string
+  freeWorkoutTrialUsed?: boolean
+  // Additional fields accessed in components
+  fitnessGoals?: string[]
+  activityLevel?: string
+  equipmentAvailability?: string[]
+  dietaryPreferences?: string[]
+  daysPerWeek?: number
+  preferredWorkoutDuration?: number
+  age?: number
+  gender?: string
+  height?: number
+  weight?: number
 } 

@@ -1,0 +1,22 @@
+# Demo File for Exercise GIFs
+
+This file demonstrates that the exercise-gifs directory is properly set up.
+
+Once you add actual GIF files here, they will automatically be detected and used by FitArchitect.
+
+For example, if you add:
+- push-up.gif
+- squat.gif  
+- burpee.gif
+
+The app will automatically use these GIFs when displaying those exercises during workouts.
+
+## Quick Test
+
+To test the system:
+1. Add any exercise GIF to this directory
+2. Name it according to the exercise (e.g., "push-up.gif")
+3. Start a workout that includes that exercise
+4. You should see the GIF instead of the gradient background
+
+The system is ready - just add your GIFs!

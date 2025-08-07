@@ -1,35 +1,47 @@
-// Utility to check if a user profile is complete
+import { isTestUser } from './testUsers';
+import { 
+  analyzeProfileCompleteness, 
+  canUseFeature, 
+  getProfileRecommendations,
+  ProfileCompletenessResult 
+} from '../services/profileValidationService';
+
+// Legacy utility to check if a user profile is complete
+// Now uses the centralized profile validation service
 export function isProfileComplete(user: any): boolean {
-  if (!user) return false;
+  if (!user) {
+    return false;
+  }
+  
   // Test user always passes
-  if (user.email === 'nepacreativeagency@icloud.com') return true;
+  if (isTestUser(user.email)) {
+    return true;
+  }
   
-  // Support both nested profile structure and flat user structure
+  // Use centralized profile validation service
   const profile = user.profile || user;
+  const analysis = analyzeProfileCompleteness(profile);
   
-  // Check basic profile fields
-  const hasBasicFields = (
-    !!profile.name &&
-    !!profile.email &&
-    typeof profile.height === 'number' && profile.height > 0 &&
-    typeof profile.weight === 'number' && profile.weight > 0 &&
-    typeof profile.age === 'number' && profile.age > 0 &&
-    ['male','female','other'].includes(profile.gender) &&
-    Array.isArray(profile.fitnessGoals) && profile.fitnessGoals.length > 0 &&
-    ['sedentary','light','moderate','active','very_active'].includes(profile.activityLevel) &&
-    Array.isArray(profile.dietaryPreferences)
-  );
+  return analysis.isComplete;
+}
+
+// Enhanced profile analysis functions
+export function getProfileAnalysis(user: any): ProfileCompletenessResult {
+  const profile = user?.profile || user;
+  return analyzeProfileCompleteness(profile);
+}
+
+export function canUserAccessFeature(user: any, feature: string): boolean {
+  // Test users get full access
+  if (user?.email && isTestUser(user.email)) {
+    return true;
+  }
   
-  // Check notification preferences (support both structures)
-  const hasNotifications = (
-    // Nested structure: profile.notifications.email/telegram
-    (profile.notifications && 
-     typeof profile.notifications.email === 'boolean' && 
-     typeof profile.notifications.telegram === 'boolean') ||
-    // Flat structure: profile.emailNotifications/telegramEnabled  
-    (typeof profile.emailNotifications === 'boolean' && 
-     typeof profile.telegramEnabled === 'boolean')
-  );
-  
-  return hasBasicFields && hasNotifications;
+  const profile = user?.profile || user;
+  return canUseFeature(profile, feature);
+}
+
+export function getUserProfileRecommendations(user: any): string[] {
+  const profile = user?.profile || user;
+  return getProfileRecommendations(profile);
 } 

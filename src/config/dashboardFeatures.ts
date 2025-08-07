@@ -40,6 +40,14 @@ export const dashboardFeatures: DashboardFeature[] = [
     allowGuest: false,
   },
   {
+    key: 'recipes',
+    title: 'Recipe Collection',
+    description: 'Create and manage your personal recipes',
+    icon: '👨‍🍳',
+    path: '/recipes',
+    allowGuest: false,
+  },
+  {
     key: 'foodscan',
     title: 'Food Product Scanning',
     description: 'Scan barcodes for instant nutrition info',

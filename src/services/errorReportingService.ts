@@ -69,6 +69,16 @@ class ErrorReportingService {
       additionalInfo
     }
 
+    // Transform to match backend API interface
+    const apiReport = {
+      message: `${report.error.description}: ${report.error.message}`,
+      stack: JSON.stringify(report, null, 2), // Include full report as stack trace
+      userAgent: report.context.userAgent,
+      url: report.context.url,
+      timestamp: report.timestamp,
+      severity: this.getSeverityFromCode(report.error.code)
+    }
+
     try {
       const response = await this.retryWithBackoff(async () => {
         const res = await fetch(this.ERROR_REPORTING_ENDPOINT, {
@@ -76,7 +86,7 @@ class ErrorReportingService {
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify(report)
+          body: JSON.stringify(apiReport)
         })
 
         if (!res.ok) {
@@ -93,6 +103,13 @@ class ErrorReportingService {
       this.storeErrorForRetry(report)
       return false
     }
+  }
+
+  private getSeverityFromCode(code: number): string {
+    if (code >= 500) return 'critical'
+    if (code >= 400) return 'high'
+    if (code >= 300) return 'medium'
+    return 'low'
   }
 
   private storeErrorForRetry(report: ErrorReport) {
@@ -115,12 +132,22 @@ class ErrorReportingService {
 
       for (const report of storedErrors) {
         try {
+          // Transform to match backend API interface
+          const apiReport = {
+            message: `${report.error.description}: ${report.error.message}`,
+            stack: JSON.stringify(report, null, 2),
+            userAgent: report.context.userAgent,
+            url: report.context.url,
+            timestamp: report.timestamp,
+            severity: this.getSeverityFromCode(report.error.code)
+          }
+
           const response = await fetch(this.ERROR_REPORTING_ENDPOINT, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
             },
-            body: JSON.stringify(report)
+            body: JSON.stringify(apiReport)
           })
 
           if (response.ok) {

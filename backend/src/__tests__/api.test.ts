@@ -4,7 +4,7 @@ import app from '../server'
 describe('API Endpoints', () => {
   let userToken: string
   let adminToken: string
-  let testUserEmail = 'nepacreativeagency@icloud.com'
+  let testUserEmail = 'test@fitarchitect.com'
   let testUserPassword = 'JestPass123!'
 
   it('should register a new user', async () => {

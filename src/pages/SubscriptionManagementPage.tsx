@@ -30,8 +30,9 @@ export const SubscriptionManagementPage: React.FC = () => {
       setIsLoading(true)
       setError(null)
       try {
+        const token = localStorage.getItem('token')
         const res = await fetch('/api/user/subscription', {
-          headers: { 'Authorization': `Bearer ${localStorage.getItem('authToken')}` }
+          headers: token ? { 'Authorization': `Bearer ${token}` } : {}
         })
         if (!res.ok) throw new Error('Failed to fetch subscription')
         const data = await res.json()
@@ -53,11 +54,12 @@ export const SubscriptionManagementPage: React.FC = () => {
     setIsLoading(true)
     setError(null)
     try {
+      const token = localStorage.getItem('token')
       const response = await fetch(`/api/cancel-subscription/${subscription?.id}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+          ...(token && { 'Authorization': `Bearer ${token}` })
         },
       })
       if (!response.ok) {
@@ -80,7 +82,7 @@ export const SubscriptionManagementPage: React.FC = () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+          ...(localStorage.getItem('token') && { 'Authorization': `Bearer ${localStorage.getItem('token')}` })
         },
       })
       if (!response.ok) {
@@ -104,7 +106,7 @@ export const SubscriptionManagementPage: React.FC = () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+          ...(localStorage.getItem('token') && { 'Authorization': `Bearer ${localStorage.getItem('token')}` })
         },
       })
       const session = await response.json()

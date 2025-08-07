@@ -81,17 +81,25 @@ const WorkoutAnalytics: React.FC = () => {
       <div className="h-80">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="date" />
-            <YAxis />
-            <Tooltip />
+            <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+            <XAxis dataKey="date" stroke="#9CA3AF" />
+            <YAxis stroke="#9CA3AF" />
+            <Tooltip 
+              contentStyle={{ 
+                backgroundColor: '#1F2937', 
+                border: '1px solid #374151',
+                borderRadius: '0.5rem'
+              }}
+              labelStyle={{ color: '#F3F4F6' }}
+              itemStyle={{ color: '#60A5FA' }}
+            />
             <Line
               type="monotone"
               dataKey={metricKey}
-              stroke="#3B82F6"
-              strokeWidth={2}
-              dot={{ r: 4 }}
-              activeDot={{ r: 6 }}
+              stroke="#60A5FA"
+              strokeWidth={3}
+              dot={{ r: 4, fill: '#60A5FA' }}
+              activeDot={{ r: 6, fill: '#3B82F6' }}
             />
           </LineChart>
         </ResponsiveContainer>
@@ -106,12 +114,22 @@ const WorkoutAnalytics: React.FC = () => {
       <div className="h-80">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="name" />
-            <YAxis />
-            <Tooltip />
-            <Legend />
-            <Bar dataKey="count" fill="#3B82F6" />
+            <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+            <XAxis dataKey="name" stroke="#9CA3AF" />
+            <YAxis stroke="#9CA3AF" />
+            <Tooltip 
+              contentStyle={{ 
+                backgroundColor: '#1F2937', 
+                border: '1px solid #374151',
+                borderRadius: '0.5rem'
+              }}
+              labelStyle={{ color: '#F3F4F6' }}
+              itemStyle={{ color: '#60A5FA' }}
+            />
+            <Legend 
+              wrapperStyle={{ color: '#9CA3AF' }}
+            />
+            <Bar dataKey="count" fill="#60A5FA" radius={[8, 8, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </div>
@@ -123,7 +141,7 @@ const WorkoutAnalytics: React.FC = () => {
     const totalWorkouts = filteredLogs.length
     const totalVolume = filteredLogs.reduce((sum, log) => sum + calculateWorkoutVolume(log), 0)
     const averageRating = filteredLogs.reduce((sum, log) => sum + (log.rating ?? 0), 0) / totalWorkouts
-    const totalDuration = filteredLogs.reduce((sum, log) => sum + log.duration, 0)
+    const totalDuration = filteredLogs.reduce((sum, log) => sum + (log.duration || 0), 0)
 
     return {
       totalWorkouts,
@@ -136,53 +154,63 @@ const WorkoutAnalytics: React.FC = () => {
   const stats = getProgressStats()
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-8">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-white rounded-lg shadow-lg p-6"
-        >
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">Total Workouts</h3>
-          <p className="text-3xl font-bold text-blue-600">{stats.totalWorkouts}</p>
-        </motion.div>
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="bg-white rounded-lg shadow-lg p-6"
-        >
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">Total Volume</h3>
-          <p className="text-3xl font-bold text-blue-600">{stats.totalVolume.toLocaleString()} lbs</p>
-        </motion.div>
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="bg-white rounded-lg shadow-lg p-6"
-        >
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">Average Rating</h3>
-          <p className="text-3xl font-bold text-blue-600">{stats.averageRating.toFixed(1)}/5</p>
-        </motion.div>
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="bg-white rounded-lg shadow-lg p-6"
-        >
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">Total Duration</h3>
-          <p className="text-3xl font-bold text-blue-600">{Math.round(stats.totalDuration / 60)}h</p>
-        </motion.div>
+    <div className="max-w-7xl mx-auto px-4 py-6">
+      {/* Key Metrics - Simplified Grid */}
+      <div className="bg-gray-900 rounded-xl p-6 mb-6">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="text-center"
+          >
+            <div className="text-3xl font-bold text-blue-400 mb-1">{stats.totalWorkouts}</div>
+            <div className="text-sm text-gray-300">Total Workouts</div>
+          </motion.div>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="text-center"
+          >
+            <div className="text-3xl font-bold text-blue-400 mb-1">
+              {stats.totalVolume > 999 ? `${(stats.totalVolume / 1000).toFixed(1)}k` : stats.totalVolume.toLocaleString()}
+            </div>
+            <div className="text-sm text-gray-300">Volume (lbs)</div>
+          </motion.div>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="text-center"
+          >
+            <div className="text-3xl font-bold text-green-400 mb-1">
+              {stats.averageRating > 0 ? stats.averageRating.toFixed(1) : '—'}
+            </div>
+            <div className="text-sm text-gray-300">Avg Rating</div>
+          </motion.div>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="text-center"
+          >
+            <div className="text-3xl font-bold text-purple-400 mb-1">
+              {Math.round(stats.totalDuration / 60)}h
+            </div>
+            <div className="text-sm text-gray-300">Total Time</div>
+          </motion.div>
+        </div>
       </div>
 
-      <div className="bg-white rounded-lg shadow-lg p-6 mb-8">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl font-bold text-gray-900">Performance Trends</h2>
-          <div className="flex space-x-4">
+      {/* Performance Trends Chart */}
+      <div className="bg-gray-900 rounded-xl p-6 mb-6">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-6">
+          <h2 className="text-xl font-bold text-white mb-4 sm:mb-0">Performance Trends</h2>
+          <div className="flex gap-2">
             <select
               value={timeRange}
               onChange={(e) => setTimeRange(e.target.value as 'week' | 'month' | 'year')}
-              className="rounded-lg border-gray-300"
+              className="rounded-lg bg-gray-800 text-white border-0 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500"
             >
               <option value="week">Last Week</option>
               <option value="month">Last Month</option>
@@ -191,7 +219,7 @@ const WorkoutAnalytics: React.FC = () => {
             <select
               value={selectedMetric}
               onChange={(e) => setSelectedMetric(e.target.value as 'volume' | 'rating' | 'duration')}
-              className="rounded-lg border-gray-300"
+              className="rounded-lg bg-gray-800 text-white border-0 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500"
             >
               <option value="volume">Volume</option>
               <option value="rating">Rating</option>
@@ -202,8 +230,9 @@ const WorkoutAnalytics: React.FC = () => {
         {renderChart()}
       </div>
 
-      <div className="bg-white rounded-lg shadow-lg p-6">
-        <h2 className="text-xl font-bold text-gray-900 mb-6">Muscle Group Distribution</h2>
+      {/* Muscle Group Distribution */}
+      <div className="bg-gray-900 rounded-xl p-6">
+        <h2 className="text-xl font-bold text-white mb-6">Muscle Group Distribution</h2>
         {renderMuscleGroupChart()}
       </div>
     </div>

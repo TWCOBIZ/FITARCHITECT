@@ -120,7 +120,7 @@ const FitnessProfile: React.FC = () => {
 
             <div>
               <label htmlFor="weight" className="block text-sm font-medium text-gray-700">
-                Weight (kg)
+                Weight (lbs)
               </label>
               <input
                 type="number"

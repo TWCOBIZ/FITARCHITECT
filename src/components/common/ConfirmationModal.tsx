@@ -56,85 +56,53 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
 
   const styles = getTypeStyles()
 
-  const handleConfirm = () => {
-    if (!isLoading) {
-      onConfirm()
-    }
-  }
-
-  const handleCancel = () => {
-    if (!isLoading) {
-      onClose()
-    }
-  }
-
   return (
     <AnimatePresence>
       {isOpen && (
-        <>
-          {/* Backdrop */}
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="fixed inset-0 bg-black bg-opacity-75 z-50 flex items-center justify-center p-4"
-            onClick={handleCancel}
+            className="fixed inset-0 bg-black bg-opacity-50"
+            onClick={onClose}
+          />
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className={`relative bg-gray-800 rounded-lg shadow-xl p-4 sm:p-8 md:p-6 lg:p-6 w-full max-w-md mx-4 border ${styles.borderColor}`}
           >
-            {/* Modal */}
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              transition={{ duration: 0.3, type: 'spring', stiffness: 300, damping: 30 }}
-              className={`bg-gray-900 rounded-xl border ${styles.borderColor} shadow-xl max-w-md w-full mx-4 overflow-hidden`}
-              onClick={(e) => e.stopPropagation()}
-            >
-              {/* Header */}
-              <div className="px-6 pt-6 pb-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <div className={`flex-shrink-0 ${styles.iconColor}`}>
-                      <FaExclamationTriangle size={24} />
-                    </div>
-                    <h3 className="text-lg font-semibold text-white">
-                      {title}
-                    </h3>
-                  </div>
-                  <button
-                    onClick={handleCancel}
-                    disabled={isLoading}
-                    className="text-gray-400 hover:text-white transition-colors duration-200 disabled:opacity-50"
-                  >
-                    <FaTimes size={20} />
-                  </button>
-                </div>
+            <div className="flex items-start">
+              <div className={`flex-shrink-0 ${styles.iconColor}`}>
+                <FaExclamationTriangle className="h-6 w-6" />
               </div>
-
-              {/* Content */}
-              <div className="px-6 pb-6">
-                <p className="text-gray-300 text-sm leading-relaxed mb-6">
+              <div className="ml-3 w-full">
+                <h3 className="text-base sm:text-xl md:text-lg font-medium text-white mb-2">
+                  {title}
+                </h3>
+                <p className="text-sm sm:text-base md:text-sm text-gray-300 mb-4">
                   {message}
                 </p>
-
-                {/* Action Buttons */}
-                <div className="flex space-x-3 justify-end">
+                <div className="flex justify-end space-x-3">
                   <button
-                    onClick={handleCancel}
+                    type="button"
+                    className="px-4 py-2 text-sm sm:text-base md:text-sm font-medium text-gray-300 bg-gray-700 border border-gray-600 rounded-md hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-500 min-h-[44px] sm:min-h-[48px] md:min-h-[44px]"
+                    onClick={onClose}
                     disabled={isLoading}
-                    className="px-4 py-2 text-sm font-medium text-gray-300 bg-gray-800 border border-gray-600 rounded-lg hover:bg-gray-700 hover:text-white focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 focus:ring-offset-gray-900 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {cancelText}
                   </button>
                   <button
-                    onClick={handleConfirm}
+                    type="button"
+                    className={`px-4 py-2 text-sm sm:text-base md:text-sm font-medium text-white border border-transparent rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px] sm:min-h-[48px] md:min-h-[44px] ${styles.confirmButtonColor}`}
+                    onClick={onConfirm}
                     disabled={isLoading}
-                    className={`px-4 py-2 text-sm font-medium text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${styles.confirmButtonColor}`}
                   >
                     {isLoading ? (
-                      <div className="flex items-center space-x-2">
-                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                        <span>Processing...</span>
+                      <div className="flex items-center">
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                        Processing...
                       </div>
                     ) : (
                       confirmText
@@ -142,9 +110,17 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
                   </button>
                 </div>
               </div>
-            </motion.div>
+              <button
+                type="button"
+                className="absolute top-4 right-4 text-gray-400 hover:text-white"
+                onClick={onClose}
+                disabled={isLoading}
+              >
+                <FaTimes className="h-4 w-4" />
+              </button>
+            </div>
           </motion.div>
-        </>
+        </div>
       )}
     </AnimatePresence>
   )

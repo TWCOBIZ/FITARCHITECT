@@ -65,7 +65,7 @@ Add GSAP animations and final polish after core functionality is solid.
 - PAR-Q completion required for workout generation access
 
 ### Subscription Tiers & Payment
-- **Free Tier**: Meal planning, calorie tracking, and 7-day free trial of AI workout generation (after PAR-Q completion)
+- **Free Tier**: Meal planning, calorie tracking, and 3-day free trial of AI workout generation (after PAR-Q completion)
 - **Basic Tier ($20/month)**: Unlimited workout generation, complete meal planning, calorie tracking
 - **Premium Tier ($40/month)**: All Basic features + food product scanning + Telegram integration
 - Stripe integration for subscription handling
@@ -87,7 +87,7 @@ Add GSAP animations and final polish after core functionality is solid.
 - PAR-Q assessment prompt for uncleared users
 - Responsive grid layout
 
-### Workout Generation System (Free: 7-day trial, Basic+ Unlimited + PAR-Q Cleared)
+### Workout Generation System (Free: 3-day trial, Basic+ Unlimited + PAR-Q Cleared)
 - Fitness profile input form
 - WGER API integration for exercise data
 - OpenAI GPT integration for personalized workout plans
@@ -95,7 +95,7 @@ Add GSAP animations and final polish after core functionality is solid.
 - Exercise demonstrations and instructions
 - Sets, reps, and rest period specifications
 - Progressive overload scheduling
-- Free tier users: 7-day trial period (unlimited during trial, then requires Basic+ subscription)
+- Free tier users: 3-day trial period (unlimited during trial, then requires Basic+ subscription)
 - Paid tier users: Unlimited generations
 
 ### Calorie & Meal Tracking (All Tiers)
@@ -153,7 +153,7 @@ Add GSAP animations and final polish after core functionality is solid.
 |---------|------|-------|---------|----------------|
 | Calorie Tracking | ✅ | ✅ | ✅ | ❌ |
 | Meal Planning | ✅ | ✅ | ✅ | ❌ |
-| Workout Generation | 7-day trial | Unlimited | Unlimited | ✅ |
+| Workout Generation | 3-day trial | Unlimited | Unlimited | ✅ |
 | Telegram Notifications | ❌ | ❌ | ✅ | ❌ |
 | Food Product Scanning | ❌ | ❌ | ✅ | ❌ |
 | Advanced Analytics | ✅ | ✅ | ✅ | ❌ |

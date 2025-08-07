@@ -17,6 +17,8 @@ interface UserProfileForm {
   gender: 'male' | 'female' | 'other'
   fitnessGoals: string[]
   activityLevel: 'sedentary' | 'light' | 'moderate' | 'active' | 'very_active'
+  equipmentAvailability: string[]
+  preferredWorkoutDuration: string
   dietaryPreferences: string[]
   notifications: {
     email: boolean
@@ -32,6 +34,25 @@ const FITNESS_GOALS = [
   { id: 'endurance', label: 'Endurance', description: 'Improve cardiovascular fitness' },
   { id: 'flexibility', label: 'Flexibility', description: 'Improve mobility and flexibility' },
   { id: 'general_fitness', label: 'General Fitness', description: 'Overall health and wellness' }
+]
+
+const EQUIPMENT_OPTIONS = [
+  { id: 'bodyweight', label: 'Bodyweight Only', description: 'No equipment needed' },
+  { id: 'dumbbells', label: 'Dumbbells', description: 'Adjustable or fixed dumbbells' },
+  { id: 'barbells', label: 'Barbells', description: 'Olympic barbell and plates' },
+  { id: 'resistance_bands', label: 'Resistance Bands', description: 'Various resistance levels' },
+  { id: 'kettlebells', label: 'Kettlebells', description: 'Various weights available' },
+  { id: 'pull_up_bar', label: 'Pull-up Bar', description: 'Wall or door-mounted' },
+  { id: 'gym_access', label: 'Full Gym Access', description: 'Complete gym equipment' },
+  { id: 'home_gym', label: 'Home Gym Setup', description: 'Personal gym with machines' }
+]
+
+const WORKOUT_DURATION_OPTIONS = [
+  { value: '15min', label: '15 Minutes', description: 'Quick, high-intensity sessions' },
+  { value: '30min', label: '30 Minutes', description: 'Balanced workout length' },
+  { value: '45min', label: '45 Minutes', description: 'Standard gym session' },
+  { value: '60min', label: '60 Minutes', description: 'Extended training time' },
+  { value: '90min', label: '90+ Minutes', description: 'Long, comprehensive workouts' }
 ]
 
 const DIETARY_PREFERENCES = [
@@ -229,7 +250,9 @@ const Profile: React.FC = () => {
   const navigate = useNavigate()
   const from = location.state?.from || '/dashboard'
   const redirectMessage = location.state?.message
-  const { updateProfile } = useAuth()
+  const pendingGoal = location.state?.pendingGoal
+  const returnTo = location.state?.returnTo
+  const { updateProfile, updateUser } = useAuth()
 
   const {
     register,
@@ -249,6 +272,8 @@ const Profile: React.FC = () => {
       gender: 'male',
       fitnessGoals: [],
       activityLevel: 'moderate',
+      equipmentAvailability: [],
+      preferredWorkoutDuration: '30min',
       dietaryPreferences: [],
       notifications: { email: true, telegram: false }
     }
@@ -268,6 +293,8 @@ const Profile: React.FC = () => {
       data.gender,
       data.fitnessGoals && data.fitnessGoals.length > 0,
       data.activityLevel,
+      data.equipmentAvailability && data.equipmentAvailability.length > 0,
+      data.preferredWorkoutDuration,
       data.dietaryPreferences && data.dietaryPreferences.length > 0,
     ]
     const filledFields = fields.filter(Boolean).length
@@ -323,6 +350,8 @@ const Profile: React.FC = () => {
             gender: userData.gender || 'male',
             fitnessGoals: userData.fitnessGoals || [],
             activityLevel: userData.activityLevel || 'moderate',
+            equipmentAvailability: userData.equipmentAvailability || [],
+            preferredWorkoutDuration: userData.preferredWorkoutDuration || '30min',
             dietaryPreferences: userData.dietaryPreferences || [],
             notifications: {
               email: userData.emailNotifications ?? true,
@@ -372,12 +401,59 @@ const Profile: React.FC = () => {
       })
       
       if (response && response.data) {
-        updateProfile(response.data)
+        // Backend returns flat user data, but frontend expects User with nested profile
+        // Transform the response to match frontend User interface
+        const userData = response.data;
+        const updatedUser = {
+          ...user,
+          id: userData.id,
+          email: userData.email,
+          name: userData.name,
+          height: userData.height,
+          weight: userData.weight,
+          age: userData.age,
+          gender: userData.gender,
+          fitnessGoals: userData.fitnessGoals,
+          activityLevel: userData.activityLevel,
+          dietaryPreferences: userData.dietaryPreferences,
+          equipmentAvailability: userData.equipmentAvailability,
+          preferredWorkoutDuration: userData.preferredWorkoutDuration,
+          emailNotifications: userData.emailNotifications,
+          telegramEnabled: userData.telegramEnabled,
+          tier: userData.tier,
+          type: userData.type,
+          parqCompleted: userData.parqCompleted,
+          avatar: userData.avatar
+        };
+        updateUser(updatedUser);
       }
       setIsDirty(false)
       
-      // Redirect back if completion is now 100%
-      if (calculateCompletionPercentage(data) === 100 && redirectMessage) {
+      // Check if profile is now complete
+      const newCompletionPercentage = calculateCompletionPercentage(data)
+      
+      // Handle seamless return to workout generation
+      if (newCompletionPercentage === 100 && pendingGoal && returnTo === 'workouts') {
+        // Profile is complete, redirect to workouts with goal and trigger generation
+        toast.success('FitArchitect AI Ready! Generating your workout...', {
+          style: {
+            background: '#1f2937',
+            color: '#fff',
+            border: '1px solid #10b981',
+          },
+          duration: 2000
+        })
+        setTimeout(() => {
+          navigate('/workouts', { 
+            state: { 
+              goal: pendingGoal, 
+              profileCompleted: true,
+              autoGenerate: true
+            } 
+          })
+        }, 1500)
+      } else if (newCompletionPercentage === 100 && redirectMessage) {
+        // Regular redirect back to where they came from
         setTimeout(() => navigate(from), 1500)
       }
     } catch (error: any) {
@@ -811,6 +887,51 @@ const Profile: React.FC = () => {
                   )}
                 />
                 {errors.activityLevel && <p className="text-red-400 text-sm mt-1">{errors.activityLevel.message}</p>}
+              </div>
+
+              {/* Available Equipment */}
+              <div className="space-y-6">
+                <h3 className="text-xl font-semibold text-white border-b border-gray-700 pb-2">Available Equipment *</h3>
+                <Controller
+                  name="equipmentAvailability"
+                  control={control}
+                  rules={{ required: 'Please select at least one equipment option' }}
+                  render={({ field }) => (
+                    <MultiSelect
+                      value={field.value}
+                      onChange={(value) => {
+                        field.onChange(value)
+                        setIsDirty(true)
+                      }}
+                      options={EQUIPMENT_OPTIONS}
+                      title="What equipment do you have access to?"
+                    />
+                  )}
+                />
+                {errors.equipmentAvailability && <p className="text-red-400 text-sm mt-1">{errors.equipmentAvailability.message}</p>}
+              </div>
+
+              {/* Preferred Workout Duration */}
+              <div className="space-y-6">
+                <h3 className="text-xl font-semibold text-white border-b border-gray-700 pb-2">Preferred Workout Duration *</h3>
+                <Controller
+                  name="preferredWorkoutDuration"
+                  control={control}
+                  rules={{ required: 'Workout duration is required' }}
+                  render={({ field }) => (
+                    <CustomSelect
+                      value={field.value}
+                      onChange={(value) => {
+                        field.onChange(value)
+                        setIsDirty(true)
+                      }}
+                      options={WORKOUT_DURATION_OPTIONS}
+                      placeholder="Select your preferred workout length"
+                      error={errors.preferredWorkoutDuration?.message}
+                    />
+                  )}
+                />
+                {errors.preferredWorkoutDuration && <p className="text-red-400 text-sm mt-1">{errors.preferredWorkoutDuration.message}</p>}
               </div>
 
               {/* Dietary Preferences */}

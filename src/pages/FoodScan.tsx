@@ -1,12 +1,28 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import BarcodeScanner from '../components/nutrition/BarcodeScanner';
 import ManualFoodEntry from '../components/nutrition/ManualFoodEntry';
 import { openFoodFactsService } from '../services/openFoodFactsService';
 import { useNutrition } from '../contexts/NutritionContext';
+import { useAuth } from '../contexts/AuthContext';
 import { FoodEntry } from '../types/nutrition';
 
 const FoodScan: React.FC = () => {
+  const { user, hasValidSubscription } = useAuth();
+  const navigate = useNavigate();
+  
+  // Double-check premium access (defense in depth)
+  React.useEffect(() => {
+    if (!user || !hasValidSubscription('premium')) {
+      navigate('/subscription', { 
+        state: { 
+          message: 'Barcode scanning requires a Premium subscription or 3-day trial',
+          feature: 'barcode-scanning'
+        } 
+      });
+    }
+  }, [user, hasValidSubscription, navigate]);
   const [activeTab, setActiveTab] = useState<'scan' | 'manual'>('scan');
   const [showScanner, setShowScanner] = useState(false);
   const [showManualEntry, setShowManualEntry] = useState(false);
@@ -37,14 +53,22 @@ const FoodScan: React.FC = () => {
   const handleManualFoodSubmit = (food: FoodEntry) => {
     addFoodEntry(food);
     setShowManualEntry(false);
-    // Could show success message here
+    // Show success message
+    const event = new CustomEvent('show-toast', {
+      detail: { message: 'Food added to nutrition log!', type: 'success' }
+    });
+    window.dispatchEvent(event);
   };
 
   const handleAddScannedFood = () => {
     if (scannedFood) {
       addFoodEntry(scannedFood);
       setScannedFood(null);
-      // Could show success message here
+      // Show success message
+      const event = new CustomEvent('show-toast', {
+        detail: { message: 'Food added to nutrition log!', type: 'success' }
+      });
+      window.dispatchEvent(event);
     }
   };
 
@@ -182,23 +206,6 @@ const FoodScan: React.FC = () => {
           />
         )}
 
-        {/* Premium Feature Notice */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.2 }}
-          className="mt-6 bg-gradient-to-r from-purple-900 to-blue-900 rounded-lg p-4 border border-purple-500"
-        >
-          <div className="flex items-center">
-            <span className="text-2xl mr-3">⭐</span>
-            <div>
-              <h3 className="font-semibold">Premium Feature</h3>
-              <p className="text-sm text-gray-300">
-                Food scanning is available for Premium subscribers only.
-              </p>
-            </div>
-          </div>
-        </motion.div>
       </motion.div>
     </div>
   );

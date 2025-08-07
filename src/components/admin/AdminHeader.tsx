@@ -1,5 +1,4 @@
 import React from 'react';
-import ThemeToggle from './ThemeToggle';
 
 interface AdminHeaderProps {
   email?: string;
@@ -14,7 +13,6 @@ const AdminHeader: React.FC<AdminHeaderProps> = ({ email, children }) => (
     </div>
     <div className="flex items-center">
       <span className="text-gray-300 mr-4">{email}</span>
-      <ThemeToggle />
     </div>
   </header>
 );

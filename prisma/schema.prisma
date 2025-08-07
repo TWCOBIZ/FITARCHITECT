@@ -1,6 +1,5 @@
 generator client {
   provider = "prisma-client-js"
-  output   = "../node_modules/.prisma/client"
 }
 
 datasource db {
@@ -9,146 +8,284 @@ datasource db {
 }
 
 model UserProfile {
-  id                String   @id @default(cuid())
-  email             String   @unique
-  name              String
-  avatar            String?
-  height            Float // in inches
-  weight            Float // in lbs
-  age               Int
-  gender            String
-  fitnessGoals      String[]
-  activityLevel     String
-  dietaryPreferences String[]
-  emailNotifications Boolean @default(true)
-  telegramEnabled   Boolean @default(false)
-  telegramChatId    String?
-  isAdmin           Boolean  @default(false)
-  password          String
-  parqCompleted      Boolean  @default(false)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  type              String   @default("registered") // 'guest' or 'registered'
-  notificationPreferences Json? // Stores granular notification settings (workoutReminders, nutritionTips, etc.)
-  tier              String   @default("free") // 'free', 'basic', 'premium'
-  subscriptionStatus String   @default("inactive") // 'active', 'cancelled', etc.
-  subscriptions     Subscription[]
-  nutritionLogs     NutritionLog[]
-  workoutLogs       WorkoutLog[]
-  parqResponses     ParqResponse[]
-  workoutPlans      WorkoutPlan[]
-  parqAnswers       Json?
-  // Free workout trial tracking (7 days from first generation)
+  id                        String         @id @default(cuid())
+  email                     String         @unique
+  name                      String
+  avatar                    String?
+  height                    Float?
+  weight                    Float?
+  age                       Int?
+  gender                    String
+  fitnessGoals              String[]
+  activityLevel             String
+  dietaryPreferences        String[]
+  emailNotifications        Boolean        @default(true)
+  telegramEnabled           Boolean        @default(false)
+  telegramChatId            String?
+  isAdmin                   Boolean        @default(false)
+  active                    Boolean        @default(true)
+  password                  String
+  createdAt                 DateTime       @default(now())
+  updatedAt                 DateTime       @updatedAt
+  parqCompleted             Boolean        @default(false)
+  type                      String         @default("registered")
+  notificationPreferences   Json?
+  subscriptionStatus        String         @default("inactive")
+  tier                      String         @default("free")
+  twoFactorEnabled          Boolean        @default(false)
+  twoFactorSecret           String?
+  parqAnswers               Json?
+  healthConditions          String?
+  injuryHistory             String?
+  legalAcknowledgment       Boolean        @default(false)
+  preferredWorkoutDuration  Int?
   freeWorkoutTrialStartDate DateTime?
-  freeWorkoutTrialUsed Boolean @default(false)
-  // 2FA fields for admin
-  twoFactorSecret   String?
-  twoFactorEnabled  Boolean  @default(false)
-  healthConditions  String?
-  injuryHistory     String?
-  equipmentAvailability String?
-  preferredWorkoutDuration String?
-  legalAcknowledgment Boolean @default(false)
-  mealPlans         MealPlan[]
+  freeWorkoutTrialUsed      Boolean        @default(false)
+  trialEndDate              DateTime?
+  equipmentAvailability     String[]
+  
+  // Stripe integration fields
+  stripeCustomerId          String?
+  stripeSubscriptionId      String?
+  subscriptionTier          String         @default("free")
+  subscriptionStartDate     DateTime?
+  subscriptionEndDate       DateTime?
+  hasPaymentMethod          Boolean        @default(false)
+  mealPlans                 MealPlan[]
+  nutritionLogs             NutritionLog[]
+  parqResponses             ParqResponse[]
+  subscriptions             Subscription[]
+  payments                  Payment[]
+  workoutLogs               WorkoutLog[]
+  workoutPlans              WorkoutPlan[]
+  recipes                   Recipe[]
+
   @@map("user_profiles")
 }
 
 model WorkoutLog {
-  id         String   @id @default(uuid())
-  userId     String
-  planId     String
-  workoutId  String
-  date       DateTime @default(now())
-  exercises  Json     // Array of { exerciseId, sets: [{ reps, weight, completed }] }
-  notes      String?
-  user       UserProfile @relation(fields: [userId], references: [id])
+  id             String      @id @default(uuid())
+  userId         String
+  planId         String
+  workoutId      String
+  date           DateTime    @default(now())
+  exercises      Json
+  notes          String?
+  completed      Boolean     @default(false)
+  duration       Int?        // workout duration in minutes
+  rating         Int?        // 1-5 star rating
+  completionRate Float?      // percentage of exercises completed
+  user           UserProfile @relation(fields: [userId], references: [id])
 }
 
 model Plan {
-  id    String   @id @default(cuid())
-  name  String
-  price Float
+  id            String         @id @default(cuid())
+  name          String
+  price         Float
   subscriptions Subscription[] @relation("PlanSubscriptions")
 }
 
 model Payment {
-  id             String   @id @default(cuid())
-  subscriptionId String
-  amount         Float
-  date           DateTime @default(now())
-  status         String
-  subscription   Subscription @relation(fields: [subscriptionId], references: [id])
+  id                     String      @id @default(cuid())
+  userId                 String
+  subscriptionId         String?
+  amount                 Float
+  currency               String      @default("usd")
+  status                 String
+  stripePaymentIntentId  String?
+  createdAt              DateTime    @default(now())
+  user                   UserProfile @relation(fields: [userId], references: [id])
+  subscription           Subscription? @relation(fields: [subscriptionId], references: [id])
 }
 
 model Subscription {
-  id         String   @id @default(cuid())
-  userId     String
-  planId     String   // Stripe price ID (also used as Plan relation foreign key)
-  plan       String   // Human-readable plan name
-  status     String   // e.g. 'active', 'cancelled', 'expired'
-  startDate  DateTime
-  endDate    DateTime?
-  user       UserProfile @relation(fields: [userId], references: [id])
-  planRef    Plan?      @relation("PlanSubscriptions", fields: [planId], references: [id])
-  payments   Payment[]
+  id        String      @id @default(cuid())
+  userId    String
+  plan      String
+  status    String
+  startDate DateTime
+  endDate   DateTime?
+  planId    String
+  payments  Payment[]
+  planRef   Plan        @relation("PlanSubscriptions", fields: [planId], references: [id])
+  user      UserProfile @relation(fields: [userId], references: [id])
 }
 
 model NutritionLog {
-  id         String   @id @default(cuid())
-  userId     String
-  date       DateTime @default(now())
-  foods      Json     // Array of foods, macros, etc.
-  calories   Float
-  notes      String?
-  user       UserProfile @relation(fields: [userId], references: [id])
+  id       String      @id @default(cuid())
+  userId   String
+  date     DateTime    @default(now())
+  foods    Json
+  calories Float
+  notes    String?
+  user     UserProfile @relation(fields: [userId], references: [id])
 }
 
 model ContentItem {
-  id         String   @id @default(cuid())
-  title      String
-  type       String   // e.g. 'article', 'tip', 'announcement'
-  body       String
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id        String   @id @default(cuid())
+  title     String
+  type      String
+  body      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model ParqResponse {
-  id              String   @id @default(uuid())
-  userId          String
-  user            UserProfile @relation(fields: [userId], references: [id])
-  answers         Json
-  flagged         Boolean  @default(false)
+  id               String      @id @default(uuid())
+  userId           String
+  answers          Json
+  flagged          Boolean     @default(false)
   flaggedQuestions String[]
-  notes           String[]
-  reviewed        Boolean  @default(false)
-  reviewedBy      String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  notes            String[]
+  reviewed         Boolean     @default(false)
+  reviewedBy       String?
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+  user             UserProfile @relation(fields: [userId], references: [id])
 }
 
 model WorkoutPlan {
+  id                    String      @id @default(cuid())
+  userId                String
+  name                  String
+  description           String
+  duration              Int         // duration in weeks
+  weeks                 Json        // structured workout weeks with exercises
+  targetMuscleGroups    String[]
+  difficulty            String
+  isDefault             Boolean     @default(false)
+  completed             Boolean     @default(false)
+  estimatedDuration     Int?        // estimated workout duration in minutes
+  equipment             String[]    // required equipment
+  source                String?     // generation source: 'wger', 'openai', 'exercisedb', 'manual'
+  completedWorkouts     Json?       // tracks individual workout completion: {workoutId: {completed: boolean, completedAt: DateTime, rating?: number}}
+  lastWorkoutCompleted  DateTime?   // timestamp of most recent workout completion
+  progressData          Json?       // detailed progress tracking: {totalWorkouts: number, completedCount: number, weeklyProgress: {}, streaks: {}}
+  createdAt             DateTime    @default(now())
+  updatedAt             DateTime    @updatedAt
+  user                  UserProfile @relation(fields: [userId], references: [id])
+}
+
+model MealPlan {
+  id           Int         @id @default(autoincrement())
+  userId       String
+  dietType     String
+  meals        Json
+  shoppingList Json
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  user         UserProfile @relation(fields: [userId], references: [id])
+}
+
+model Recipe {
+  id           Int         @id @default(autoincrement())
+  userId       String
+  name         String
+  description  String?
+  category     String      // breakfast, lunch, dinner, snack, dessert, side-dish
+  difficulty   String      // easy, medium, hard
+  prepTime     Int         // minutes
+  cookTime     Int         @default(0) // minutes
+  servings     Int         @default(4)
+  ingredients  Json        // array of ingredient objects
+  instructions Json        // array of instruction strings
+  nutrition    Json?       // nutrition information object
+  imageUrl     String?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  user         UserProfile @relation(fields: [userId], references: [id])
+}
+
+model Exercise {
+  id              String   @id @default(cuid())
+  name            String
+  description     String
+  category        String   // push, pull, legs, core, cardio, fullbody
+  muscleGroups    String[] // array of muscle groups
+  equipment       String[] // array of equipment needed
+  difficulty      String   // beginner, intermediate, advanced
+  instructions    String[] // step-by-step instructions
+  tips            String[] @default([]) // optional tips
+  imageUrl        String?  // optional image
+  videoUrl        String?  // optional video
+  isCustom        Boolean  @default(true) // distinguish custom vs default exercises
+  createdBy       String?  // admin user ID who created it
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  isActive        Boolean  @default(true) // soft delete functionality
+  
+  // GIF Approval System Fields
+  approvalStatus    String   @default("pending") // pending, approved, flagged, hidden
+  lastReviewedAt    DateTime?
+  reviewedBy        String?  // Admin user ID
+  flaggedReason     String?
+  hideGif           Boolean  @default(false) // Emergency hide toggle
+  gifPath           String?  // Associated GIF path
+
+  @@map("exercises")
+}
+
+model ErrorReport {
+  id          Int      @id @default(autoincrement())
+  message     String
+  stack       String?
+  userAgent   String?
+  url         String?
+  timestamp   DateTime @default(now())
+  severity    String   @default("medium") // low, medium, high, critical
+  ipAddress   String?
+  resolved    Boolean  @default(false)
+  resolvedBy  String?
+  resolvedAt  DateTime?
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model SystemSettings {
   id                String   @id @default(cuid())
-  userId            String
-  user              UserProfile @relation(fields: [userId], references: [id])
-  name              String
-  description       String
-  duration          Int // in weeks
-  workouts          Json // Array of workouts (structure defined in frontend)
-  targetMuscleGroups String[]
-  difficulty        String
-  isDefault         Boolean @default(false)
-  completed         Boolean @default(false)
+  maintenanceMode   Boolean  @default(false)
+  allowRegistrations Boolean @default(true)
+  requireEmailVerification Boolean @default(false)
+  notificationEmail String?
+  appName           String   @default("FitArchitect")  
+  appDescription    String   @default("Your AI-powered fitness companion")
+  supportEmail      String   @default("support@fitarchitect.com")
+  maxFreeUsers      Int      @default(1000)
+  sessionTimeout    Int      @default(1440) // 24 hours in minutes
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 }
 
-model MealPlan {
-  id Int @id @default(autoincrement())
-  userId String
-  user UserProfile @relation(fields: [userId], references: [id])
-  dietType String
-  meals Json
-  shoppingList Json
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-} 
+model AuditLog {
+  id           String   @id @default(cuid())
+  adminUserId  String
+  adminEmail   String
+  action       String   // "create", "update", "delete", "activate", "deactivate", etc.
+  resourceType String   // "user", "subscription", "content", "exercise", etc.
+  resourceId   String?
+  resourceName String?  // Human readable name/identifier
+  details      Json?    // Additional action details
+  ipAddress    String?
+  userAgent    String?
+  success      Boolean  @default(true)
+  errorMessage String?
+  createdAt    DateTime @default(now())
+}
+
+model NotificationQueue {
+  id           String    @id @default(cuid())
+  type         String    // "email", "telegram", "push", etc.
+  recipient    String    // email address, telegram chat id, etc.
+  subject      String?
+  body         String
+  templateId   String?   // Reference to notification template
+  scheduledFor DateTime?
+  sentAt       DateTime?
+  status       String    @default("pending") // "pending", "sent", "failed", "cancelled"
+  attempts     Int       @default(0)
+  lastAttempt  DateTime?
+  errorMessage String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}

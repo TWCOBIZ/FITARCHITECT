@@ -1,13 +1,16 @@
-import React from 'react'
+import React, { Suspense, useEffect, useState } from 'react'
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from 'react-hot-toast'
+import ErrorBoundary from './components/common/ErrorBoundary'
+import LoadingSpinner from './components/common/LoadingSpinner'
 import { AppProvider } from './contexts/AppContext'
 import { AuthProvider } from './contexts/AuthContext'
 import { StripeProvider } from './contexts/StripeContext'
 import { NutritionProvider } from './contexts/NutritionContext'
 import { OpenAIProvider } from './contexts/OpenAIContext'
 import { WgerProvider } from './contexts/WgerContext'
+import { AudioProvider } from './components/workout/AudioController'
 import { ProtectedRoute } from './components/auth/ProtectedRoute'
 import { ParqForm } from './components/parq/ParqForm'
 import SplashScreen from './pages/SplashScreen'
@@ -16,6 +19,7 @@ import SubscriptionPage from './pages/SubscriptionPage'
 import { WorkoutProvider } from './contexts/WorkoutContext'
 import Layout from './components/common/Layout'
 import { SubscriptionManagementPage } from './pages/SubscriptionManagementPage'
+import { ExerciseFallbackProvider } from './components/workout/ExerciseFallbackProvider'
 import Dashboard from './pages/Dashboard'
 import Nutrition from './pages/Nutrition'
 import Profile from './pages/Profile'
@@ -24,14 +28,20 @@ import Register from './pages/Register'
 import FitnessProfile from './pages/FitnessProfile'
 import AdminLogin from './pages/AdminLogin'
 import AdminProtectedRoute from './components/auth/AdminProtectedRoute'
-import AdminDashboard from './pages/AdminDashboard'
-import MealPlanning from './pages/MealPlanning'
-import { SubscriptionPlans } from './components/subscription/SubscriptionPlans'
+import { backendHealthCheck } from './utils/backendHealthCheck'
+import { BackendReadinessWrapper } from './components/common/BackendReadinessWrapper'
+// Lazy load heavy components for better performance
+const AdminDashboard = React.lazy(() => import('./pages/AdminDashboard'))
+const MealPlanning = React.lazy(() => import('./pages/MealPlanning'))
+const NutritionTracking = React.lazy(() => import('./pages/NutritionTracking'))
+const Recipes = React.lazy(() => import('./pages/Recipes'))
+const WorkoutPage = React.lazy(() => import('./pages/WorkoutPage'))
+const FoodScan = React.lazy(() => import('./pages/FoodScan'))
+const SubscriptionPlans = React.lazy(() => import('./components/subscription/SubscriptionPlans').then(module => ({ default: module.SubscriptionPlans })))
 import ForgotPassword from './pages/ForgotPassword'
+import ResetPasswordForm from './components/auth/ResetPasswordForm'
 import SubscriptionSuccess from './pages/SubscriptionSuccess'
-import WorkoutPage from './pages/WorkoutPage'
 import Analytics from './pages/Analytics'
-import FoodScan from './pages/FoodScan'
 import NotificationSettings from './pages/NotificationSettings'
 
 // Create a client
@@ -39,16 +49,25 @@ const queryClient = new QueryClient()
 
 const App: React.FC = () => {
   return (
-    <QueryClientProvider client={queryClient}>
-      <AppProvider>
-        <AuthProvider>
-          <StripeProvider>
-            <WorkoutProvider>
-              <OpenAIProvider>
-                <NutritionProvider>
-                  <WgerProvider>
-                    <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-                          <Routes>
+    <ErrorBoundary>
+      <BackendReadinessWrapper>
+        <QueryClientProvider client={queryClient}>
+        <AppProvider>
+          <AuthProvider>
+            <StripeProvider>
+              <WorkoutProvider>
+                <AudioProvider>
+                  <OpenAIProvider>
+                    <NutritionProvider>
+                      <WgerProvider>
+                        <ExerciseFallbackProvider>
+                      <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+                        <Suspense fallback={
+                          <div className="min-h-screen flex items-center justify-center bg-gray-900">
+                            <LoadingSpinner size="xl" color="white" text="Loading..." />
+                          </div>
+                        }>
+                            <Routes>
                             {/* Admin Routes (outside main Layout) */}
                             <Route path="/admin/login" element={<AdminLogin />} />
                             <Route path="/admin/dashboard/*" element={
@@ -62,6 +81,7 @@ const App: React.FC = () => {
                             <Route path="/login" element={<Login />} />
                             <Route path="/register" element={<Register />} />
                             <Route path="/forgot-password" element={<ForgotPassword />} />
+                            <Route path="/reset-password" element={<ResetPasswordForm />} />
                             <Route path="/subscription/success" element={<SubscriptionSuccess />} />
                             {/* Main App Routes WITH header/footer */}
                             <Route element={<Layout />}>
@@ -124,6 +144,14 @@ const App: React.FC = () => {
                                 } 
                               />
                               <Route 
+                                path="nutrition-tracking" 
+                                element={
+                                  <ProtectedRoute requireAuth allowGuest={true}>
+                                    <NutritionTracking />
+                                  </ProtectedRoute>
+                                } 
+                              />
+                              <Route 
                                 path="profile" 
                                 element={
                                   <ProtectedRoute requireAuth>
@@ -136,6 +164,14 @@ const App: React.FC = () => {
                                 element={
                                   <ProtectedRoute requireAuth allowGuest={true}>
                                     <MealPlanning />
+                                  </ProtectedRoute>
+                                }
+                              />
+                              <Route 
+                                path="recipes"
+                                element={
+                                  <ProtectedRoute requireAuth allowGuest={false}>
+                                    <Recipes />
                                   </ProtectedRoute>
                                 }
                               />
@@ -165,6 +201,7 @@ const App: React.FC = () => {
                               />
                             </Route>
                           </Routes>
+                      </Suspense>
                     </Router>
                     {/* Toast Notification System - FitArchitect Black/White Theme */}
                     <Toaster
@@ -224,14 +261,18 @@ const App: React.FC = () => {
                         },
                       }}
                     />
-                  </WgerProvider>
-                </NutritionProvider>
-              </OpenAIProvider>
-            </WorkoutProvider>
-          </StripeProvider>
-        </AuthProvider>
-      </AppProvider>
+                        </ExerciseFallbackProvider>
+                      </WgerProvider>
+                    </NutritionProvider>
+                  </OpenAIProvider>
+                </AudioProvider>
+              </WorkoutProvider>
+            </StripeProvider>
+          </AuthProvider>
+        </AppProvider>
     </QueryClientProvider>
+    </BackendReadinessWrapper>
+    </ErrorBoundary>
   )
 }
 

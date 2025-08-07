@@ -3,9 +3,23 @@ import { loadStripe, Stripe } from '@stripe/stripe-js'
 import { Elements } from '@stripe/react-stripe-js'
 import { SUBSCRIPTION_PLANS, SubscriptionTier } from '../config/subscription'
 
-// Initialize Stripe with the publishable key from environment variables
+// Initialize Stripe with environment detection
 const STRIPE_PUBLISHABLE_KEY = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY
-const stripePromise = loadStripe(STRIPE_PUBLISHABLE_KEY)
+const isDevelopment = import.meta.env.DEV
+const isHTTPS = typeof window !== 'undefined' && window.location.protocol === 'https:'
+
+// Only initialize Stripe if we have HTTPS or are in development
+// This prevents the HTTPS warning in production
+let stripePromise: Promise<Stripe | null> | null = null
+
+if (STRIPE_PUBLISHABLE_KEY && (isHTTPS || isDevelopment)) {
+  stripePromise = loadStripe(STRIPE_PUBLISHABLE_KEY)
+} else if (!isHTTPS && !isDevelopment) {
+  console.warn('Stripe requires HTTPS in production. Stripe features will be disabled.')
+  stripePromise = Promise.resolve(null)
+} else {
+  stripePromise = Promise.resolve(null)
+}
 
 interface StripeContextType {
   stripePromise: Promise<Stripe | null>
@@ -26,6 +40,11 @@ export const StripeProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       return
     }
 
+    // Check if Stripe is available
+    if (!stripePromise) {
+      throw new Error('Stripe is not available. HTTPS is required for payment processing.')
+    }
+
     try {
       const response = await fetch('/api/create-checkout-session', {
         method: 'POST',
@@ -43,7 +62,7 @@ export const StripeProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       const stripe = await stripePromise
       
       if (!stripe) {
-        throw new Error('Stripe failed to load')
+        throw new Error('Stripe failed to load or is not available')
       }
 
       const result = await stripe.redirectToCheckout({

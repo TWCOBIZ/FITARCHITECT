@@ -2,16 +2,21 @@ import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 
 const panels = [
-  { path: '', label: 'Overview' },
-  { path: 'users', label: 'Users' },
-  { path: 'subscriptions', label: 'Subscriptions' },
-  { path: 'analytics', label: 'Analytics' },
-  { path: 'parq', label: 'PAR-Q' },
-  { path: 'content', label: 'Content' },
-  { path: 'notifications', label: 'Notifications' },
-  { path: 'system', label: 'System Health' },
-  { path: 'settings', label: 'Settings' },
-  { path: 'export', label: 'Export' },
+  { path: '', label: 'Overview', icon: '📊' },
+  { path: 'exercise-registry', label: 'Exercise Registry', icon: '📚' },
+  { path: 'users', label: 'Users', icon: '👥' },
+  { path: 'subscriptions', label: 'Subscriptions', icon: '💳' },
+  { path: 'analytics', label: 'Analytics', icon: '📈' },
+  { path: 'parq', label: 'PAR-Q', icon: '📋' },
+  { path: 'content', label: 'Content', icon: '📝' },
+  { path: 'exercises', label: 'Exercises', icon: '💪' },
+  { path: 'workout-builder', label: 'Workout Builder', icon: '🏗️' },
+  { path: 'workout-templates', label: 'Workout Templates', icon: '📑' },
+  { path: 'exercise-media', label: 'Exercise Media', icon: '🎬' },
+  { path: 'notifications', label: 'Notifications', icon: '🔔' },
+  { path: 'system', label: 'System Health', icon: '⚡' },
+  { path: 'settings', label: 'Settings', icon: '⚙️' },
+  { path: 'export', label: 'Export', icon: '📤' },
 ];
 
 const AdminSidebar: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
@@ -31,10 +36,11 @@ const AdminSidebar: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
             <Link
               key={panel.path}
               to={to}
-              className={`block px-3 py-2 rounded transition-colors ${active ? 'bg-gray-700 text-blue-400' : 'hover:bg-gray-700'}`}
+              className={`flex items-center gap-3 px-3 py-2 rounded transition-colors ${active ? 'bg-gray-700 text-blue-400' : 'text-gray-300 hover:bg-gray-700 hover:text-white'}`}
               tabIndex={0}
             >
-              {panel.label}
+              <span className="text-lg">{panel.icon}</span>
+              <span>{panel.label}</span>
             </Link>
           );
         })}

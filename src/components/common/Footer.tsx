@@ -37,7 +37,14 @@ const Footer: React.FC = () => {
           <div>
             <h4 className="text-lg font-semibold mb-4">Support</h4>
             <ul className="space-y-2">
-              {/* Removed FAQ, Contact, and Privacy Policy links to prevent navigation errors */}
+              <li>
+                <a
+                  href="mailto:twcobiz@icloud.com"
+                  className="text-gray-400 hover:text-white"
+                >
+                  Contact Us
+                </a>
+              </li>
             </ul>
           </div>
           
@@ -46,17 +53,7 @@ const Footer: React.FC = () => {
             <ul className="space-y-2">
               <li>
                 <a
-                  href="https://twitter.com/fitarchitect"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-gray-400 hover:text-white"
-                >
-                  Twitter
-                </a>
-              </li>
-              <li>
-                <a
-                  href="https://instagram.com/fitarchitect"
+                  href="https://www.instagram.com/realtwco/"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-gray-400 hover:text-white"

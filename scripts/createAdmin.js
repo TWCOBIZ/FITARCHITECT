@@ -95,7 +95,7 @@ async function main() {
     },
   });
 
-  const email3 = 'nepacreativeagency@icloud.com';
+  const email3 = 'test@fitarchitect.com';
   const password3 = 'testuser';
   const hash3 = await bcrypt.hash(password3, 10);
 
@@ -140,12 +140,65 @@ async function main() {
     },
   });
 
+  // Create the commonly expected admin@fitarchitect.com user
+  // WARNING: Do not change this password without updating all test files and documentation
+  const email4 = 'admin@fitarchitect.com';
+  const password4 = 'testpassword123';
+  const hash4 = await bcrypt.hash(password4, 10);
+
+  await prisma.userProfile.upsert({
+    where: { email: email4 },
+    update: {
+      password: hash4,
+      isAdmin: true,
+      tier: 'premium',
+      subscriptionStatus: 'active',
+      name: 'System Admin',
+      height: 170,
+      weight: 70,
+      age: 30,
+      gender: 'other',
+      fitnessGoals: [],
+      activityLevel: 'moderate',
+      dietaryPreferences: [],
+      emailNotifications: true,
+      telegramEnabled: false,
+      parqCompleted: true,
+      type: 'registered',
+    },
+    create: {
+      email: email4,
+      password: hash4,
+      isAdmin: true,
+      tier: 'premium',
+      subscriptionStatus: 'active',
+      name: 'System Admin',
+      height: 170,
+      weight: 70,
+      age: 30,
+      gender: 'other',
+      fitnessGoals: [],
+      activityLevel: 'moderate',
+      dietaryPreferences: [],
+      emailNotifications: true,
+      telegramEnabled: false,
+      parqCompleted: true,
+      type: 'registered',
+    },
+  });
+
   console.log('Admin users created or updated!');
+  console.log('Available admin accounts:');
+  console.log('- admin@fitarchitect.com (password: testpassword123)');
+  console.log('- ken@nepacreativeagency.com (password: adminlog)');
+  console.log('- twcobiz@icloud.com (password: dandj2018)');
+  console.log('Test user account:');
+  console.log('- test@fitarchitect.com (password: testuser)');
 }
 
 // --- Grant full access to test user ---
 async function grantFullAccessToTestUser() {
-  const testUserEmail = 'nepacreativeagency@icloud.com';
+  const testUserEmail = 'test@fitarchitect.com';
   const premiumPlanId = 'price_1RNGiSDJqnmZlsfMyaQp5RCy';
   const user = await prisma.userProfile.findUnique({ where: { email: testUserEmail } });
   if (!user) {

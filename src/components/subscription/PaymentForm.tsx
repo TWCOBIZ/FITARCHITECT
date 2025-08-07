@@ -45,10 +45,12 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({
       }
 
       // Create subscription on the backend
-      const response = await fetch('http://localhost:3001/api/create-subscription', {
+      const token = localStorage.getItem('token')
+      const response = await fetch('/api/create-subscription', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...(token && { Authorization: `Bearer ${token}` }),
         },
         body: JSON.stringify({
           paymentMethodId: paymentMethod.id,

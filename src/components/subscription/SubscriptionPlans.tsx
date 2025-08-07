@@ -70,7 +70,10 @@ export const SubscriptionPlans: React.FC = () => {
       setLoading(true)
       setError(null)
       try {
-        const res = await fetch('/api/plans')
+        const token = localStorage.getItem('token')
+        const res = await fetch('/api/plans', {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        })
         if (!res.ok) throw new Error('Failed to fetch plans')
         const data: StripePlan[] = await res.json()
         // Find Basic and Premium by planId

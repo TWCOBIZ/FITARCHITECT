@@ -72,6 +72,24 @@ echo -e "${YELLOW}Pushing database schema...${NC}"
 npx prisma db push
 
 echo -e "${GREEN}Database setup completed successfully!${NC}"
+
+# Ask if user wants to seed the database
+echo -e "${YELLOW}Would you like to seed the database with admin and test users? (y/n)${NC}"
+read -r SEED_RESPONSE
+
+if [[ "$SEED_RESPONSE" =~ ^[Yy]$ ]]; then
+    echo -e "${YELLOW}Seeding database...${NC}"
+    node scripts/seed-database.js
+    if [ $? -eq 0 ]; then
+        echo -e "${GREEN}Database seeded successfully${NC}"
+    else
+        echo -e "${RED}Failed to seed database${NC}"
+    fi
+fi
+
+echo -e "${GREEN}Setup completed successfully!${NC}"
 echo -e "${YELLOW}Next steps:${NC}"
 echo "1. Update the DATABASE_URL in .env with your actual PostgreSQL credentials"
-echo "2. Run 'npx prisma studio' to view and manage your database" 
+echo "2. Set ADMIN_EMAIL and ADMIN_PASSWORD in .env for custom admin credentials"
+echo "3. Run 'npm run dev:all' to start the full development environment"
+echo "4. Run 'npx prisma studio' to view and manage your database" 

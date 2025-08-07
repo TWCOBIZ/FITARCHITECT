@@ -14,12 +14,12 @@ export const FormInput: React.FC<FormInputProps> = ({
 }) => {
   return (
     <div className="space-y-2">
-      <label className="block text-sm font-medium text-foreground">
+      <label className="block text-xs sm:text-base md:text-sm font-medium text-foreground">
         {label}
       </label>
       <input
         className={cn(
-          "w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2",
+          "w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 min-h-[44px] sm:min-h-[48px] md:min-h-[44px] text-sm sm:text-base md:text-sm",
           error && "border-red-500",
           // Ensure text color is always opposite of background
           className?.includes('bg-black') || className?.includes('bg-gray-900') || className?.includes('bg-gray-800') || className?.includes('bg-muted')
@@ -32,7 +32,7 @@ export const FormInput: React.FC<FormInputProps> = ({
         {...props}
       />
       {error && (
-        <p className="text-sm text-red-500">{error}</p>
+        <p className="text-xs sm:text-base md:text-sm text-red-500">{error}</p>
       )}
     </div>
   )

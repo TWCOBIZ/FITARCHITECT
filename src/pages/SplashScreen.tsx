@@ -5,7 +5,7 @@ import { useAuth } from '../contexts/AuthContext'
 
 export default function SplashScreen() {
   const navigate = useNavigate()
-  const { continueAsGuest } = useAuth()
+  const { loginAsGuest } = useAuth()
   const [stage, setStage] = useState(1)
   const [showLogo, setShowLogo] = useState(true)
   const [showBackground, setShowBackground] = useState(false)
@@ -55,8 +55,12 @@ export default function SplashScreen() {
         navigate('/login')
         break
       case "CONTINUE AS GUEST":
-        continueAsGuest()
-        navigate('/dashboard')
+        try {
+          await loginAsGuest()
+          navigate('/dashboard')
+        } catch (error) {
+          // Failed to continue as guest - handled by UI
+        }
         break
     }
   }
@@ -152,22 +156,48 @@ export default function SplashScreen() {
             transition={{ duration: 0.5 }}
           >
             <div className="flex flex-col gap-4 mt-16">
-              {["START YOUR JOURNEY", "LOGIN", "CONTINUE AS GUEST"].map((text, index) => (
-                <motion.button
-                  key={index}
-                  onClick={() => handleButtonClick(text)}
-                  className="bg-white/10 hover:bg-white/20 text-white border border-white/30 rounded-md py-3 px-8 min-w-[240px] backdrop-blur-sm transition-colors"
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{
-                    duration: 0.5,
-                    delay: 0.3 * index,
-                    ease: "easeOut",
-                  }}
-                >
-                  {text}
-                </motion.button>
-              ))}
+              <motion.button
+                onClick={() => handleButtonClick("START YOUR JOURNEY")}
+                data-testid="splash-start-your-journey-button"
+                className="bg-white/10 hover:bg-white/20 text-white border border-white/30 rounded-md py-3 px-8 min-w-[240px] backdrop-blur-sm transition-colors"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{
+                  duration: 0.5,
+                  delay: 0,
+                  ease: "easeOut",
+                }}
+              >
+                START YOUR JOURNEY
+              </motion.button>
+              <motion.button
+                onClick={() => handleButtonClick("LOGIN")}
+                data-testid="splash-login-button"
+                className="bg-white/10 hover:bg-white/20 text-white border border-white/30 rounded-md py-3 px-8 min-w-[240px] backdrop-blur-sm transition-colors"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{
+                  duration: 0.5,
+                  delay: 0.3,
+                  ease: "easeOut",
+                }}
+              >
+                LOGIN
+              </motion.button>
+              <motion.button
+                onClick={() => handleButtonClick("CONTINUE AS GUEST")}
+                data-testid="splash-continue-as-guest-button"
+                className="bg-white/10 hover:bg-white/20 text-white border border-white/30 rounded-md py-3 px-8 min-w-[240px] backdrop-blur-sm transition-colors"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{
+                  duration: 0.5,
+                  delay: 0.6,
+                  ease: "easeOut",
+                }}
+              >
+                CONTINUE AS GUEST
+              </motion.button>
             </div>
           </motion.div>
         )}

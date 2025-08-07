@@ -18,7 +18,8 @@ const ExerciseDetails: React.FC<ExerciseDetailsProps> = ({ exercise, onClose }) 
       try {
         const exercises = await wgerService.fetchExercises({})
         if (exercises.length > 0) {
-          setWgerExercise(exercises[0] as WgerExercise)
+          const foundExercise = exercises.find(ex => ex.name?.toLowerCase().includes(exercise.name.toLowerCase())) || exercises[0];
+          setWgerExercise(foundExercise as unknown as WgerExercise)
         }
       } catch (error) {
         console.error('Error fetching exercise details:', error)
@@ -91,8 +92,8 @@ const ExerciseDetails: React.FC<ExerciseDetailsProps> = ({ exercise, onClose }) 
           <div className="p-4 bg-purple-50 rounded-lg">
             <h4 className="font-medium text-purple-800 mb-2">Community Tips</h4>
             <ul className="list-disc list-inside text-sm text-purple-700 space-y-1">
-              {wgerExercise.comments.map((comment, index: number) => (
-                <li key={index}>{comment.comment}</li>
+              {wgerExercise.comments.map((comment: any, index: number) => (
+                <li key={index}>{typeof comment === 'string' ? comment : comment.comment || ''}</li>
               ))}
             </ul>
           </div>
@@ -106,20 +107,21 @@ const ExerciseDetails: React.FC<ExerciseDetailsProps> = ({ exercise, onClose }) 
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -20 }}
-      className="fixed inset-0 z-50 overflow-y-auto"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
     >
-      <div className="min-h-screen px-4 text-center">
-        <div className="fixed inset-0 bg-black bg-opacity-50" onClick={onClose} />
-
-        <div className="inline-block w-full max-w-4xl p-6 my-8 text-left align-middle transition-all transform bg-white shadow-xl rounded-2xl">
-          <div className="flex justify-between items-start mb-6">
+      <div className="fixed inset-0 bg-black bg-opacity-50" onClick={onClose} />
+      
+      <div className="relative w-full max-w-4xl max-h-[90vh] bg-white shadow-xl rounded-2xl flex flex-col overflow-hidden">
+        {/* Header - Fixed */}
+        <div className="flex-shrink-0 p-6 pb-0">
+          <div className="flex justify-between items-start mb-4">
             <div>
-              <h2 className="text-2xl font-bold">{exercise.name}</h2>
-              <p className="text-gray-600">{exercise.description}</p>
+              <h2 className="text-xl sm:text-2xl font-bold">{exercise.name}</h2>
+              <p className="text-gray-600 text-sm sm:text-base">{exercise.description}</p>
             </div>
             <button
               onClick={onClose}
-              className="text-gray-400 hover:text-gray-500"
+              className="text-gray-400 hover:text-gray-500 flex-shrink-0 ml-4"
             >
               <span className="sr-only">Close</span>
               <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -128,10 +130,11 @@ const ExerciseDetails: React.FC<ExerciseDetailsProps> = ({ exercise, onClose }) 
             </button>
           </div>
 
-          <div className="flex space-x-4 mb-6">
+          {/* Tabs - Fixed */}
+          <div className="flex space-x-2 sm:space-x-4">
             <button
               onClick={() => setActiveTab('instructions')}
-              className={`px-4 py-2 rounded-lg ${
+              className={`px-3 sm:px-4 py-2 rounded-lg text-sm sm:text-base transition-colors ${
                 activeTab === 'instructions'
                   ? 'bg-blue-600 text-white'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -141,7 +144,7 @@ const ExerciseDetails: React.FC<ExerciseDetailsProps> = ({ exercise, onClose }) 
             </button>
             <button
               onClick={() => setActiveTab('video')}
-              className={`px-4 py-2 rounded-lg ${
+              className={`px-3 sm:px-4 py-2 rounded-lg text-sm sm:text-base transition-colors ${
                 activeTab === 'video'
                   ? 'bg-blue-600 text-white'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -151,7 +154,7 @@ const ExerciseDetails: React.FC<ExerciseDetailsProps> = ({ exercise, onClose }) 
             </button>
             <button
               onClick={() => setActiveTab('tips')}
-              className={`px-4 py-2 rounded-lg ${
+              className={`px-3 sm:px-4 py-2 rounded-lg text-sm sm:text-base transition-colors ${
                 activeTab === 'tips'
                   ? 'bg-blue-600 text-white'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -160,28 +163,29 @@ const ExerciseDetails: React.FC<ExerciseDetailsProps> = ({ exercise, onClose }) 
               Tips
             </button>
           </div>
+        </div>
 
-          <div className="mt-4">
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={activeTab}
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                transition={{ duration: 0.2 }}
-              >
-                {activeTab === 'instructions' && renderInstructions()}
-                {activeTab === 'video' && renderVideo()}
-                {activeTab === 'tips' && renderTips()}
-              </motion.div>
-            </AnimatePresence>
-          </div>
+        {/* Scrollable Content Area */}
+        <div className="flex-1 overflow-y-auto p-6 pt-4 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={activeTab}
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              transition={{ duration: 0.2 }}
+            >
+              {activeTab === 'instructions' && renderInstructions()}
+              {activeTab === 'video' && renderVideo()}
+              {activeTab === 'tips' && renderTips()}
+            </motion.div>
+          </AnimatePresence>
 
-          {wgerExercise?.images?.length > 0 && (
+          {wgerExercise && 'images' in wgerExercise && (wgerExercise as any).images?.length > 0 && (
             <div className="mt-6">
               <h3 className="text-lg font-semibold mb-4">Exercise Images</h3>
               <div className="grid grid-cols-2 gap-4">
-                {wgerExercise.images.map((image) => (
+                {(wgerExercise as any).images.map((image: any) => (
                   <img
                     key={image.id}
                     src={image.image}

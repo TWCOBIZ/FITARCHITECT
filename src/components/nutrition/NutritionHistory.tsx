@@ -30,11 +30,18 @@ function EditNutritionLogModal({ log, onClose, onSave }: EditNutritionLogModalPr
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
-    const calories = foods.reduce((acc, f) => acc + Number(f.calories || 0), 0);
+    
+    // Validate and calculate totals with proper null checks
+    const safeNumber = (value: any): number => {
+      const num = Number(value);
+      return isNaN(num) || num < 0 ? 0 : num;
+    };
+    
+    const calories = foods.reduce((acc, f) => acc + safeNumber(f.calories), 0);
     const macros = foods.reduce((acc, f) => ({
-      protein: acc.protein + Number(f.protein || 0),
-      carbs: acc.carbs + Number(f.carbs || 0),
-      fat: acc.fat + Number(f.fat || 0),
+      protein: acc.protein + safeNumber(f.protein),
+      carbs: acc.carbs + safeNumber(f.carbs),
+      fat: acc.fat + safeNumber(f.fat),
     }), { protein: 0, carbs: 0, fat: 0 });
     const token = localStorage.getItem('token');
     const res = await fetch(`/api/nutrition-log/${log.id}`, {
@@ -80,7 +87,7 @@ function EditNutritionLogModal({ log, onClose, onSave }: EditNutritionLogModalPr
 
 export default function NutritionHistory() {
   const { user } = useAuth();
-  const { dailyLog } = useNutrition();
+  const { } = useNutrition();
   const [logs, setLogs] = useState<NutritionLog[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [editingLog, setEditingLog] = useState<NutritionLog | null>(null);
@@ -194,7 +201,7 @@ export default function NutritionHistory() {
           <div className="flex justify-between items-center mb-2">
             <div className="font-semibold text-white">{new Date(log.date).toLocaleString()}</div>
             <div className="space-x-2">
-              {!user?.isGuest && !user?.type === 'guest' && (
+              {!user?.isGuest && user?.type !== 'guest' && (
                 <button onClick={() => setEditingLog(log)} className="px-2 py-1 bg-yellow-600 hover:bg-yellow-700 text-white rounded">Edit</button>
               )}
               <button onClick={() => handleDeleteClick(log.id)} className="px-2 py-1 bg-red-600 hover:bg-red-700 text-white rounded">Delete</button>

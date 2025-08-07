@@ -1,0 +1,4 @@
+-- AlterTable
+ALTER TABLE "user_profiles" ALTER COLUMN "height" DROP NOT NULL,
+ALTER COLUMN "weight" DROP NOT NULL,
+ALTER COLUMN "age" DROP NOT NULL;

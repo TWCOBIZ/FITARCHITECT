@@ -1,5 +1,5 @@
-import { API_CONFIG } from '../config/api'
-import { ErrorReportingService } from './errorReportingService'
+import { api } from './api'
+// import { ErrorReportingService } from './errorReportingService'
 
 interface TelegramConfig {
   chatId: string
@@ -11,10 +11,14 @@ interface TelegramError {
   message: string
 }
 
+/**
+ * Secure Telegram Service
+ * All Telegram operations are handled through backend API endpoints
+ * Bot token is never exposed to the frontend
+ */
 class TelegramService {
   private static instance: TelegramService
   private config: TelegramConfig | null = null
-  private baseUrl: string
 
   // Telegram API error codes and their user-friendly messages
   private static readonly ERROR_MESSAGES: Record<number, string> = {
@@ -30,7 +34,7 @@ class TelegramService {
   }
 
   private constructor() {
-    this.baseUrl = `https://api.telegram.org/bot${API_CONFIG.TELEGRAM_BOT_TOKEN}`
+    // No direct API calls - everything goes through backend
   }
 
   public static getInstance(): TelegramService {
@@ -52,239 +56,147 @@ class TelegramService {
       message: 'An unexpected error occurred. Please try again later.'
     }
 
-    try {
-      // Check if it's a Telegram API error response
-      if (
-        typeof error === 'object' &&
-        error !== null &&
-        'response' in error &&
-        (error as any).response?.data?.description
-      ) {
-        const code = (error as any).response.status
-        const description = (error as any).response.data.description
-        const message = TelegramService.ERROR_MESSAGES[code] || description
-
+    if (error instanceof Error) {
+      const axiosError = error as any
+      if (axiosError.response?.data?.error) {
+        const errorData = axiosError.response.data.error
+        const code = errorData.code || axiosError.response.status || 0
+        
         return {
           code,
-          description,
-          message
+          description: errorData.description || TelegramService.ERROR_MESSAGES[code] || 'Unknown error',
+          message: TelegramService.ERROR_MESSAGES[code] || errorData.message || defaultError.message
         }
       }
-
-      // Check if it's a network error
-      if (
-        typeof error === 'object' &&
-        error !== null &&
-        'message' in error &&
-        typeof (error as any).message === 'string' &&
-        (error as any).message.includes('Failed to fetch')
-      ) {
-        return {
-          code: 0,
-          description: 'Network error',
-          message: 'Unable to connect to Telegram. Please check your internet connection.'
-        }
-      }
-
-      return defaultError
-    } catch {
-      return defaultError
     }
+
+    return defaultError
   }
 
-  private async handleError(error: unknown, action: string): Promise<TelegramError> {
-    const telegramError = this.handleTelegramError(error)
-    
-    // Report error to development team
-    await ErrorReportingService.getInstance().reportError(
-      telegramError,
-      'TelegramService',
-      action,
-      {
-        chatId: this.config?.chatId,
-        baseUrl: this.baseUrl
-      }
-    )
-
-    return telegramError
-  }
-
-  public async sendMessage(message: string): Promise<{ success: boolean; error?: TelegramError }> {
-    if (!this.config?.chatId) {
-      const error = {
-        code: 0,
-        description: 'Chat ID not configured',
-        message: 'Please configure your Telegram Chat ID in the settings.'
-      }
-      await ErrorReportingService.getInstance().reportError(
-        error,
-        'TelegramService',
-        'sendMessage',
-        { message }
-      )
-      return { success: false, error }
-    }
-
-    if (!API_CONFIG.TELEGRAM_BOT_TOKEN) {
-      const error = {
-        code: 0,
-        description: 'Bot token not configured',
-        message: 'Telegram bot token is not configured. Please contact support.'
-      }
-      await ErrorReportingService.getInstance().reportError(
-        error,
-        'TelegramService',
-        'sendMessage',
-        { message }
-      )
-      return { success: false, error }
-    }
-
+  /**
+   * Send a notification to the user via Telegram
+   */
+  public async sendNotification(message: string): Promise<{ success: boolean; error?: TelegramError }> {
     try {
-      const response = await fetch(`${this.baseUrl}/sendMessage`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          chat_id: this.config.chatId,
-          text: message,
-          parse_mode: 'HTML'
-        })
-      })
-
-      if (!response.ok) {
-        type TelegramApiError = { description: string }
-        const errorData: TelegramApiError = await response.json()
-        throw {
-          response: {
-            status: response.status,
-            data: errorData
-          }
-        }
-      }
-
+      const response = await api.post('/api/telegram/notify', { message })
       return { success: true }
     } catch (error) {
-      const telegramError = await this.handleError(error, 'sendMessage')
-      return {
-        success: false,
-        error: telegramError
-      }
+      const telegramError = this.handleTelegramError(error)
+      
+      // Log to error reporting service
+      console.error('TelegramService error:', telegramError)
+
+      return { success: false, error: telegramError }
     }
   }
 
-  public async validateChatId(chatId: string): Promise<{ success: boolean; error?: TelegramError }> {
-    if (!API_CONFIG.TELEGRAM_BOT_TOKEN) {
-      const error = {
-        code: 0,
-        description: 'Bot token not configured',
-        message: 'Telegram bot token is not configured. Please contact support.'
-      }
-      await ErrorReportingService.getInstance().reportError(
-        error,
-        'TelegramService',
-        'validateChatId',
-        { chatId }
-      )
-      return { success: false, error }
-    }
-
+  /**
+   * Connect user's Telegram account
+   */
+  public async connectUserAccount(chatId: string): Promise<{ success: boolean; error?: TelegramError }> {
     try {
-      const response = await fetch(`${this.baseUrl}/getChat`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          chat_id: chatId
-        })
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw {
-          response: {
-            status: response.status,
-            data: errorData
-          }
-        }
-      }
-
+      const response = await api.post('/api/telegram/connect', { chatId })
+      this.config = { chatId }
       return { success: true }
     } catch (error) {
-      const telegramError = await this.handleError(error, 'validateChatId')
-      return {
-        success: false,
-        error: telegramError
+      const telegramError = this.handleTelegramError(error)
+      
+      console.error('TelegramService connection error:', telegramError)
+
+      return { success: false, error: telegramError }
+    }
+  }
+
+  /**
+   * Disconnect user's Telegram account
+   */
+  public async disconnectUserAccount(): Promise<{ success: boolean; error?: TelegramError }> {
+    try {
+      const response = await api.post('/api/telegram/disconnect')
+      this.config = null
+      return { success: true }
+    } catch (error) {
+      const telegramError = this.handleTelegramError(error)
+      
+      console.error('TelegramService disconnection error:', telegramError)
+
+      return { success: false, error: telegramError }
+    }
+  }
+
+  /**
+   * Get connection status
+   */
+  public async getConnectionStatus(): Promise<{ connected: boolean; chatId?: string; error?: TelegramError }> {
+    try {
+      const response = await api.get('/api/telegram/status')
+      const { connected, chatId } = response.data
+      
+      if (connected && chatId) {
+        this.config = { chatId }
       }
+      
+      return { connected, chatId }
+    } catch (error) {
+      const telegramError = this.handleTelegramError(error)
+      return { connected: false, error: telegramError }
     }
   }
 
-  async sendWorkoutReminder(workout: string, time: string): Promise<boolean> {
-    const message = `
-🏋️‍♂️ <b>Workout Reminder</b>
-Time: ${time}
-Workout: ${workout}
+  /**
+   * Send a daily reminder
+   */
+  public async sendDailyReminder(type: 'workout' | 'meal' | 'water'): Promise<{ success: boolean; error?: TelegramError }> {
+    try {
+      const response = await api.post('/api/telegram/reminder', { type })
+      return { success: true }
+    } catch (error) {
+      const telegramError = this.handleTelegramError(error)
+      
+      console.error('TelegramService reminder error:', telegramError)
 
-Don't forget to stay hydrated and warm up properly! 💪
-    `
-    const result = await this.sendMessage(message)
-    return result.success
+      return { success: false, error: telegramError }
+    }
   }
 
-  async sendNutritionTip(tip: string): Promise<boolean> {
-    const message = `
-🥗 <b>Nutrition Tip</b>
-${tip}
-
-Stay on track with your fitness goals! 🌟
-    `
-    const result = await this.sendMessage(message)
-    return result.success
+  /**
+   * Test connection by sending a test message
+   */
+  public async testConnection(): Promise<{ success: boolean; error?: TelegramError }> {
+    return this.sendNotification('🎉 Your Telegram is successfully connected to FitArchitect!')
   }
 
-  async sendMotivationMessage(message: string): Promise<boolean> {
-    const formattedMessage = `
-✨ <b>Daily Motivation</b>
-${message}
-
-Keep pushing forward! 💫
-    `
-    const result = await this.sendMessage(formattedMessage)
-    return result.success
+  /**
+   * Report an error to the development channel
+   */
+  public async reportError(error: { type: string; message: string; metadata?: any }): Promise<void> {
+    try {
+      await api.post('/api/telegram/error', error)
+    } catch (err) {
+      // Silently fail error reporting to avoid infinite loops
+      console.error('Failed to report error to Telegram:', err)
+    }
   }
 
-  async sendProgressUpdate(progress: {
-    weight?: number
-    measurements?: Record<string, number>
-    achievements?: string[]
-  }): Promise<boolean> {
-    let message = `
-📊 <b>Progress Update</b>\n`
+  async sendMessage(message: string): Promise<{ success: boolean; error?: any }> {
+    return this.sendNotification(message)
+  }
 
-    if (progress.weight) {
-      message += `\nWeight: ${progress.weight}lbs`
+  async validateChatId(chatId: string): Promise<{ valid: boolean; error?: string }> {
+    try {
+      // Simple validation - just check if it's a valid format
+      const isValid = /^-?\d+$/.test(chatId)
+      if (!isValid) {
+        return { valid: false, error: 'Invalid chat ID format' }
+      }
+      
+      // Test send a message to validate the chat ID
+      const testResult = await this.sendNotification('Test message for validation')
+      return { valid: testResult.success, error: testResult.error?.description }
+    } catch (error) {
+      return { valid: false, error: 'Failed to validate chat ID' }
     }
-
-    if (progress.measurements) {
-      message += '\n\nMeasurements:'
-      Object.entries(progress.measurements).forEach(([key, value]) => {
-        message += `\n${key}: ${value}inches`
-      })
-    }
-
-    if (progress.achievements?.length) {
-      message += '\n\nAchievements:'
-      progress.achievements.forEach(achievement => {
-        message += `\n🏆 ${achievement}`
-      })
-    }
-
-    const result = await this.sendMessage(message)
-    return result.success
   }
 }
 
-export { TelegramService }
-export const telegramService = TelegramService.getInstance() 
+export default TelegramService

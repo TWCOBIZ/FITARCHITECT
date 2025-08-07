@@ -76,6 +76,14 @@ const WorkoutProfileForm: React.FC<WorkoutProfileFormProps> = ({ onSubmit, onBac
     }))
   }
 
+  const handleSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const { name, value } = e.target
+    setFormData(prev => ({
+      ...prev,
+      [name]: Number(value)
+    }))
+  }
+
   const handleMultiSelect = (name: string, value: string) => {
     setFormData(prev => {
       const currentValues = prev[name as keyof UserProfile] as string[]
@@ -274,16 +282,18 @@ const WorkoutProfileForm: React.FC<WorkoutProfileFormProps> = ({ onSubmit, onBac
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Workout Days per Week
           </label>
-          <input
-            type="number"
+          <select
             name="daysPerWeek"
             value={formData.daysPerWeek}
-            onChange={handleNumberInput}
-            min="1"
-            max="7"
+            onChange={handleSelectChange}
             className="w-full px-3 py-2 border rounded-lg text-white bg-black"
             required
-          />
+          >
+            <option value={3}>3 days - Beginner friendly</option>
+            <option value={4}>4 days - Balanced routine</option>
+            <option value={5}>5 days - Active lifestyle</option>
+            <option value={6}>6 days - Advanced training</option>
+          </select>
         </div>
       </div>
     </motion.div>

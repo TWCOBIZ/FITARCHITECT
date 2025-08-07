@@ -94,9 +94,9 @@ export const WgerProvider: React.FC<{ children: React.ReactNode }> = ({ children
         id: raw.id.toString(),
         name: raw.name,
         description: raw.description,
-        muscleGroups: raw.muscles.map((m) => m.name),
-        equipment: raw.equipment.map((e) => e.name),
-        difficulty: raw.difficulty || 'intermediate',
+        muscleGroups: raw.muscles.map((m) => m.name) as any[],
+        equipment: raw.equipment.map((e) => e.name) as any[],
+        difficulty: (raw.difficulty || 'intermediate') as 'beginner' | 'intermediate' | 'advanced',
         instructions: raw.instructions ? [raw.instructions] : [],
       };
     } catch (err) {
