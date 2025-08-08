@@ -18,8 +18,8 @@
     "build:with-types": "tsc --noEmit && vite build",
     "build:production": "NODE_ENV=production npm run build",
     "build:backend": "cd backend && npm run build",
-    "start": "npm run preview",
-    "start:production": "concurrently \"npm run start\" \"cd backend && npm run start\"",
+    "start": "serve -s dist -l $PORT",
+    "start:production": "serve -s dist -l $PORT",
     "lint": "eslint src backend/src --max-warnings 0",
     "preview": "vite preview",
     "taskmaster": "npx -y --package=task-master-ai task-master-ai",
@@ -70,6 +70,7 @@
     "react-use": "^17.6.0",
     "react-use-gesture": "^9.1.3",
     "recharts": "^2.7.2",
+    "serve": "^14.2.4",
     "tailwind-merge": "^3.2.0",
     "use-sound": "^5.0.0"
   },
