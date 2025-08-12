@@ -15,7 +15,7 @@ const listeners: ((status: BackendStatus) => void)[] = [];
 
 // Create a separate axios instance for health checks to avoid circular dependency
 const healthCheckAxios = axios.create({
-  baseURL: import.meta.env.PROD ? (import.meta.env.VITE_API_URL || 'http://localhost:3001') : '',
+  baseURL: (window as any).__RUNTIME_CONFIG__?.API_URL || import.meta.env.VITE_API_URL || (import.meta.env.PROD ? 'http://localhost:3001' : ''),
   timeout: 5000,
   headers: {
     'Content-Type': 'application/json',

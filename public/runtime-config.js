@@ -1,0 +1,3 @@
+window.__RUNTIME_CONFIG__ = {
+  API_URL: "VITE_API_URL_PLACEHOLDER"
+};

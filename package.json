@@ -14,7 +14,7 @@
     "db:seed": "node scripts/seed-database.js",
     "dev:mobile": "concurrently \"npm run dev\" \"cd backend && npm run dev\"",
     "dev:https": "HTTPS=true vite",
-    "build": "vite build",
+    "build": "vite build && sh scripts/setup-runtime-config.sh",
     "build:with-types": "tsc --noEmit && vite build",
     "build:production": "NODE_ENV=production npm run build",
     "build:backend": "cd backend && npm run build",
