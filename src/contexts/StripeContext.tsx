@@ -4,7 +4,7 @@ import { Elements } from '@stripe/react-stripe-js'
 import { SUBSCRIPTION_PLANS, SubscriptionTier } from '../config/subscription'
 
 // Initialize Stripe with environment detection
-const STRIPE_PUBLISHABLE_KEY = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || 'pk_live_hshOHEe0veS42TTj9g5eTV1R00n2VmFa6I'
+const STRIPE_PUBLISHABLE_KEY = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY
 const isDevelopment = import.meta.env.DEV
 const isHTTPS = typeof window !== 'undefined' && window.location.protocol === 'https:'
 
