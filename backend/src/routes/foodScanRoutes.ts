@@ -1,7 +1,6 @@
 import { Router, Response } from 'express';
 import { authenticate, requireSubscription, AuthenticatedRequest } from '../auth';
 import { logger } from '../utils/logger';
-import axios from 'axios';
 
 const router = Router();
 
@@ -52,9 +51,10 @@ router.get('/barcode/:barcode',
       });
 
       // Call Open Food Facts API
-      const response = await axios.get(`${OPENFOODFACTS_API_URL}/api/v0/product/${barcode}.json`);
+      const response = await fetch(`${OPENFOODFACTS_API_URL}/api/v0/product/${barcode}.json`);
+      const data = await response.json();
       
-      if (response.data.status !== 1 || !response.data.product) {
+      if (data.status !== 1 || !data.product) {
         logger.warn('Food not found for barcode', {
           operation: 'food_barcode_not_found',
           component: 'food_scan',
@@ -68,7 +68,7 @@ router.get('/barcode/:barcode',
         });
       }
 
-      const product: OpenFoodFactsProduct = response.data.product;
+      const product: OpenFoodFactsProduct = data.product;
       
       // Transform to our food entry format
       const foodEntry = {
@@ -83,7 +83,7 @@ router.get('/barcode/:barcode',
         sodium: Math.round(product.nutriments.sodium_100g || 0),
         servingSize: 100,
         servingUnit: 'g',
-        brand: response.data.product.brands || '',
+        brand: data.product.brands || '',
         ingredients: product.ingredients_tags || [],
         allergens: product.allergens_tags || [],
         labels: product.labels_tags || []
@@ -108,7 +108,8 @@ router.get('/barcode/:barcode',
         userId: req.user!.id
       }, error as Error);
 
-      if (axios.isAxiosError(error) && error.response?.status === 404) {
+      // Check if it's a 404 error
+      if (error instanceof Error && error.message.includes('404')) {
         return res.status(404).json({
           error: 'Food not found',
           code: 'FOOD_NOT_FOUND'
@@ -129,8 +130,8 @@ async function searchUSDAFoods(query: string) {
     // USDA Food Data Central API (free, no API key required for basic search)
     const usdaUrl = `https://api.nal.usda.gov/fdc/v1/foods/search?query=${encodeURIComponent(query)}&pageSize=10&dataType=Foundation,SR%20Legacy`;
     
-    const response = await axios.get(usdaUrl);
-    const data = response.data;
+    const response = await fetch(usdaUrl);
+    const data = await response.json();
 
     if (!data.foods || data.foods.length === 0) {
       return [];
@@ -204,24 +205,25 @@ router.get('/search',
       try {
         // Primary: Open Food Facts API with correct endpoint
         const searchUrl = `${OPENFOODFACTS_API_URL}/cgi/search.pl`;
-        const response = await axios.get(searchUrl, {
-          params: {
-            search_terms: q,
-            search_simple: 1,
-            action: 'process',
-            json: 1,
-            page_size: 20,
-            page: page,
-            fields: 'product_name,code,nutriscore_grade,nutriments,brands,image_url,categories'
-          },
+        const params = new URLSearchParams({
+          search_terms: q as string,
+          search_simple: '1',
+          action: 'process',
+          json: '1',
+          page_size: '20',
+          page: page.toString(),
+          fields: 'product_name,code,nutriscore_grade,nutriments,brands,image_url,categories'
+        });
+        const response = await fetch(`${searchUrl}?${params}`, {
           headers: {
             'User-Agent': 'FitArchitect/1.0 (https://fitarchitect.com)'
           }
         });
+        const responseData = await response.json();
 
-        if (response.data.products && response.data.products.length > 0) {
+        if (responseData.products && responseData.products.length > 0) {
           // Transform Open Food Facts data and filter out empty nutrition
-          foods = response.data.products
+          foods = responseData.products
             .filter((product: any) => product.product_name && product.nutriments)
             .map((product: any) => {
               const nutriments = product.nutriments || {};
@@ -245,7 +247,7 @@ router.get('/search',
             })
             .filter((food: any) => food.calories > 0 || food.protein > 0 || food.carbs > 0 || food.fat > 0);
 
-          totalResults = response.data.count || 0;
+          totalResults = responseData.count || 0;
           logger.info(`Open Food Facts: Found ${foods.length} foods`);
         }
       } catch (error) {

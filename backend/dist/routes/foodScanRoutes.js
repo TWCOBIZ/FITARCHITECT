@@ -1,12 +1,8 @@
 "use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const auth_1 = require("../auth");
 const logger_1 = require("../utils/logger");
-const axios_1 = __importDefault(require("axios"));
 const router = (0, express_1.Router)();
 const OPENFOODFACTS_API_URL = 'https://world.openfoodfacts.org';
 /**
@@ -14,7 +10,6 @@ const OPENFOODFACTS_API_URL = 'https://world.openfoodfacts.org';
  * Requires premium subscription
  */
 router.get('/barcode/:barcode', auth_1.authenticate, (0, auth_1.requireSubscription)('premium'), async (req, res) => {
-    var _a;
     try {
         const { barcode } = req.params;
         const userId = req.user.id;
@@ -31,8 +26,9 @@ router.get('/barcode/:barcode', auth_1.authenticate, (0, auth_1.requireSubscript
             metadata: { barcode }
         });
         // Call Open Food Facts API
-        const response = await axios_1.default.get(`${OPENFOODFACTS_API_URL}/api/v0/product/${barcode}.json`);
-        if (response.data.status !== 1 || !response.data.product) {
+        const response = await fetch(`${OPENFOODFACTS_API_URL}/api/v0/product/${barcode}.json`);
+        const data = await response.json();
+        if (data.status !== 1 || !data.product) {
             logger_1.logger.warn('Food not found for barcode', {
                 operation: 'food_barcode_not_found',
                 component: 'food_scan',
@@ -44,7 +40,7 @@ router.get('/barcode/:barcode', auth_1.authenticate, (0, auth_1.requireSubscript
                 code: 'FOOD_NOT_FOUND'
             });
         }
-        const product = response.data.product;
+        const product = data.product;
         // Transform to our food entry format
         const foodEntry = {
             name: product.product_name || 'Unknown Product',
@@ -58,7 +54,7 @@ router.get('/barcode/:barcode', auth_1.authenticate, (0, auth_1.requireSubscript
             sodium: Math.round(product.nutriments.sodium_100g || 0),
             servingSize: 100,
             servingUnit: 'g',
-            brand: response.data.product.brands || '',
+            brand: data.product.brands || '',
             ingredients: product.ingredients_tags || [],
             allergens: product.allergens_tags || [],
             labels: product.labels_tags || []
@@ -81,7 +77,8 @@ router.get('/barcode/:barcode', auth_1.authenticate, (0, auth_1.requireSubscript
             component: 'food_scan',
             userId: req.user.id
         }, error);
-        if (axios_1.default.isAxiosError(error) && ((_a = error.response) === null || _a === void 0 ? void 0 : _a.status) === 404) {
+        // Check if it's a 404 error
+        if (error instanceof Error && error.message.includes('404')) {
             return res.status(404).json({
                 error: 'Food not found',
                 code: 'FOOD_NOT_FOUND'
@@ -98,8 +95,8 @@ async function searchUSDAFoods(query) {
     try {
         // USDA Food Data Central API (free, no API key required for basic search)
         const usdaUrl = `https://api.nal.usda.gov/fdc/v1/foods/search?query=${encodeURIComponent(query)}&pageSize=10&dataType=Foundation,SR%20Legacy`;
-        const response = await axios_1.default.get(usdaUrl);
-        const data = response.data;
+        const response = await fetch(usdaUrl);
+        const data = await response.json();
         if (!data.foods || data.foods.length === 0) {
             return [];
         }
@@ -162,23 +159,24 @@ router.get('/search', auth_1.authenticate, async (req, res) => {
         try {
             // Primary: Open Food Facts API with correct endpoint
             const searchUrl = `${OPENFOODFACTS_API_URL}/cgi/search.pl`;
-            const response = await axios_1.default.get(searchUrl, {
-                params: {
-                    search_terms: q,
-                    search_simple: 1,
-                    action: 'process',
-                    json: 1,
-                    page_size: 20,
-                    page: page,
-                    fields: 'product_name,code,nutriscore_grade,nutriments,brands,image_url,categories'
-                },
+            const params = new URLSearchParams({
+                search_terms: q,
+                search_simple: '1',
+                action: 'process',
+                json: '1',
+                page_size: '20',
+                page: page.toString(),
+                fields: 'product_name,code,nutriscore_grade,nutriments,brands,image_url,categories'
+            });
+            const response = await fetch(`${searchUrl}?${params}`, {
                 headers: {
                     'User-Agent': 'FitArchitect/1.0 (https://fitarchitect.com)'
                 }
             });
-            if (response.data.products && response.data.products.length > 0) {
+            const responseData = await response.json();
+            if (responseData.products && responseData.products.length > 0) {
                 // Transform Open Food Facts data and filter out empty nutrition
-                foods = response.data.products
+                foods = responseData.products
                     .filter((product) => product.product_name && product.nutriments)
                     .map((product) => {
                     const nutriments = product.nutriments || {};
@@ -200,7 +198,7 @@ router.get('/search', auth_1.authenticate, async (req, res) => {
                     };
                 })
                     .filter((food) => food.calories > 0 || food.protein > 0 || food.carbs > 0 || food.fat > 0);
-                totalResults = response.data.count || 0;
+                totalResults = responseData.count || 0;
                 logger_1.logger.info(`Open Food Facts: Found ${foods.length} foods`);
             }
         }
