@@ -427,6 +427,85 @@ app.get('/api/admin/workout-metrics', authenticate, requireAdmin, (req, res) => 
   }
 });
 
+// Diagnostic endpoint to check why features aren't working
+app.get('/api/diagnostics', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const diagnostics: any = {
+      timestamp: new Date().toISOString(),
+      environment: process.env.NODE_ENV,
+      user: {
+        id: req.user?.id,
+        email: req.user?.email,
+        tier: req.user?.tier,
+        isAdmin: req.user?.isAdmin
+      }
+    };
+
+    // Check database connectivity
+    try {
+      await prisma.$queryRaw`SELECT 1`;
+      diagnostics.database = { status: 'connected' };
+    } catch (error) {
+      diagnostics.database = { status: 'error', error: error.message };
+    }
+
+    // Check exercise count
+    try {
+      const exerciseCount = await prisma.exercise.count();
+      const activeExercises = await prisma.exercise.count({ where: { isActive: true } });
+      diagnostics.exercises = { 
+        total: exerciseCount, 
+        active: activeExercises,
+        status: exerciseCount > 0 ? 'populated' : 'empty' 
+      };
+    } catch (error) {
+      diagnostics.exercises = { status: 'error', error: error.message };
+    }
+
+    // Check workout plans
+    try {
+      const planCount = await prisma.workoutPlan.count();
+      const userPlans = await prisma.workoutPlan.count({ 
+        where: { userId: req.user?.id } 
+      });
+      diagnostics.workoutPlans = { 
+        total: planCount, 
+        userPlans: userPlans,
+        status: planCount > 0 ? 'populated' : 'empty'
+      };
+    } catch (error) {
+      diagnostics.workoutPlans = { status: 'error', error: error.message };
+    }
+
+    // Check OpenAI configuration
+    diagnostics.openai = {
+      configured: !!process.env.OPENAI_API_KEY,
+      model: process.env.OPENAI_MODEL || 'not set',
+      keyPrefix: process.env.OPENAI_API_KEY ? process.env.OPENAI_API_KEY.substring(0, 10) + '...' : 'not set'
+    };
+
+    // Check Stripe configuration
+    diagnostics.stripe = {
+      configured: !!process.env.STRIPE_SECRET_KEY,
+      keyPrefix: process.env.STRIPE_SECRET_KEY ? process.env.STRIPE_SECRET_KEY.substring(0, 10) + '...' : 'not set'
+    };
+
+    // Check Cloudinary configuration
+    diagnostics.cloudinary = {
+      configured: !!process.env.CLOUDINARY_CLOUD_NAME,
+      cloudName: process.env.CLOUDINARY_CLOUD_NAME || 'not set'
+    };
+
+    res.json(diagnostics);
+  } catch (error) {
+    console.error('Diagnostics error:', error);
+    res.status(500).json({ 
+      error: 'Failed to run diagnostics',
+      message: error.message 
+    });
+  }
+});
+
 // Comprehensive logging middleware stack
 app.use(requestIdMiddleware);
 app.use(requestLoggingMiddleware);
