@@ -2992,59 +2992,79 @@ app.get('/api/admin/audit-logs', authenticate, requireAdmin, async (req: Authent
 // GET /api/gif-files - Discover available GIF files (public endpoint for UnifiedGifRegistry)
 app.get('/api/gif-files', async (req: Request, res: Response) => {
   try {
-    const fs = require('fs').promises;
-    const path = require('path');
+    // Frontend URL where GIFs are actually served from
+    const frontendUrl = process.env.FRONTEND_URL || 'https://fitarchitect-production-78ff.up.railway.app';
     
-    // Directory paths to scan (relative to project root, not backend directory)
-    const gifDirectories = [
-      '../public/exercise-gifs/cardio',
-      '../public/exercise-gifs/warmup',
-      '../public/exercise-gifs/strength',
-      '../public/exercise-gifs/core',
-      '../public/exercise-gifs/legs',
-      '../public/exercise-gifs/arms',
-      '../public/exercise-gifs/back',
-      '../public/exercise-gifs/chest',
-      '../public/exercise-gifs/shoulders',
-      '../public/exercise-gifs/full-body',
-      '../public/exercise-gifs/flexibility'
+    // Static list of available GIF files (served from frontend)
+    const gifFiles = [
+      // Core exercises
+      'exercise-gifs/core/alternate-heel-touchers.gif',
+      'exercise-gifs/core/34-sit-up.gif', 
+      'exercise-gifs/core/45-side-bend.gif',
+      'exercise-gifs/core/air-bike.gif',
+      'exercise-gifs/core/assisted-hanging-knee-raise.gif',
+      'exercise-gifs/core/assisted-lying-leg-raise-with-throw-down.gif',
+      'exercise-gifs/core/barbell-rollerout.gif',
+      'exercise-gifs/core/cable-kneeling-crunch.gif',
+      'exercise-gifs/core/front-plank-with-twist.gif',
+      
+      // Arms exercises  
+      'exercise-gifs/arms/barbell-curl.gif',
+      'exercise-gifs/arms/barbell-close-grip-bench-press.gif',
+      'exercise-gifs/arms/assisted-triceps-dip-kneeling.gif',
+      'exercise-gifs/arms/weighted-tricep-dips.gif',
+      'exercise-gifs/arms/lever-bicep-curl.gif',
+      
+      // Back exercises
+      'exercise-gifs/back/barbell-bent-over-row.gif',
+      'exercise-gifs/back/pull-up-neutral-grip.gif', 
+      'exercise-gifs/back/reverse-grip-machine-lat-pulldown.gif',
+      'exercise-gifs/back/assisted-pull-up.gif',
+      
+      // Chest exercises
+      'exercise-gifs/chest/barbell-bench-press.gif',
+      'exercise-gifs/chest/incline-push-up-depth-jump.gif',
+      'exercise-gifs/chest/assisted-chest-dip-kneeling.gif',
+      'exercise-gifs/chest/cable-one-arm-decline-chest-fly.gif',
+      
+      // Legs exercises
+      'exercise-gifs/legs/barbell-deadlift.gif',
+      'exercise-gifs/legs/barbell-lunge.gif', 
+      'exercise-gifs/legs/barbell-bench-front-squat.gif',
+      'exercise-gifs/legs/sled-45-leg-press.gif',
+      'exercise-gifs/legs/barbell-seated-calf-raise.gif',
+      
+      // Shoulders exercises
+      'exercise-gifs/shoulders/barbell-seated-overhead-press.gif',
+      'exercise-gifs/shoulders/cable-alternate-shoulder-press.gif',
+      
+      // Cardio exercises
+      'exercise-gifs/cardio/jack-burpee.gif',
+      'exercise-gifs/cardio/mountain-climber.gif',
+      'exercise-gifs/cardio/walking-high-knees-lunge.gif'
     ];
     
-    const allGifs = [];
-    
-    for (const dir of gifDirectories) {
-      const fullPath = path.join(process.cwd(), dir);
+    // Convert to proper format matching the expected response
+    const allGifs = gifFiles.map(filePath => {
+      const pathParts = filePath.split('/');
+      const category = pathParts[1]; // arms, back, chest, etc.
+      const fileName = pathParts[2];
       
-      try {
-        await fs.access(fullPath);
-        const files = await fs.readdir(fullPath);
-        
-        for (const file of files) {
-          if (file.endsWith('.gif')) {
-            const filePath = path.join(fullPath, file);
-            const stats = await fs.stat(filePath);
-            
-            allGifs.push({
-              filename: file,
-              path: `/exercise-gifs/${path.basename(dir)}/${file}`,
-              category: path.basename(dir),
-              size: stats.size,
-              lastModified: stats.mtime.toISOString()
-            });
-          }
-        }
-      } catch (error) {
-        console.warn(`Directory not accessible: ${dir}`);
-        // Continue with other directories
-      }
-    }
+      return {
+        filename: fileName,
+        path: `/${filePath}`, // Relative path for frontend serving
+        category: category,
+        size: 1024 * 50, // Approximate size
+        lastModified: new Date('2024-01-01').toISOString() // Placeholder date
+      };
+    });
     
-    console.log(`📊 Public API discovered ${allGifs.length} GIF files for registry`);
+    console.log(`📊 Public API serving ${allGifs.length} GIF files from frontend: ${frontendUrl}`);
     res.json(allGifs);
     
   } catch (error: any) {
-    console.error('Error discovering GIF files:', error);
-    res.status(500).json({ error: 'Failed to discover GIF files' });
+    console.error('Error serving GIF files:', error);
+    res.status(500).json({ error: 'Failed to serve GIF files' });
   }
 });
 
