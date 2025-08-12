@@ -1,4 +1,4 @@
-import { PrismaClient } from '../../../node_modules/@prisma/client';
+import { PrismaClient } from '@prisma/client';
 
 // Singleton pattern for Prisma client with connection pooling
 let prisma: PrismaClient;

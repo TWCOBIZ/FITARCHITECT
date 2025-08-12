@@ -3,7 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.prisma = void 0;
 exports.checkDatabaseConnection = checkDatabaseConnection;
 exports.getQueryMetrics = getQueryMetrics;
-const client_1 = require("../../../node_modules/@prisma/client");
+const client_1 = require("@prisma/client");
 // Singleton pattern for Prisma client with connection pooling
 let prisma;
 if (process.env.NODE_ENV === 'production') {

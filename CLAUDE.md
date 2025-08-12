@@ -29,10 +29,10 @@ npm run test:playwright # Playwright tests
 npm run db:setup        # Complete database setup (PostgreSQL + schema + seeding)
 npm run db:ensure       # Ensure PostgreSQL is running (used by dev:all)
 npm run db:seed         # Seed database with admin and test users
-npx prisma generate     # Generate Prisma client after schema changes
-npx prisma db push      # Push schema changes to database
-npx prisma migrate dev  # Create and apply new migration
-npx prisma studio       # Open Prisma Studio database browser
+cd backend && npx prisma generate     # Generate Prisma client after schema changes
+cd backend && npx prisma db push      # Push schema changes to database
+cd backend && npx prisma migrate dev  # Create and apply new migration
+cd backend && npx prisma studio       # Open Prisma Studio database browser
 ```
 
 ### Backend Only Commands
@@ -145,9 +145,9 @@ Copy `.env.example` to `.env` and configure these required variables:
 4. Add UI indicators for locked features
 
 ### Database Schema Changes
-1. Modify `/prisma/schema.prisma`
-2. Run `npx prisma generate` to update client
-3. Run `npx prisma migrate dev` to create migration
+1. Modify `/backend/prisma/schema.prisma`
+2. Run `cd backend && npx prisma generate` to update client
+3. Run `cd backend && npx prisma migrate dev` to create migration
 4. Update TypeScript types if needed
 
 ### Adding New React Components
@@ -177,7 +177,7 @@ Copy `.env.example` to `.env` and configure these required variables:
 ### Common Setup Issues
 1. **Database connection**: Ensure PostgreSQL is running and DATABASE_URL is correct
 2. **API proxy errors**: Check that backend server is running on port 3001
-3. **Prisma client errors**: Run `npx prisma generate` after schema changes
+3. **Prisma client errors**: Run `cd backend && npx prisma generate` after schema changes
 4. **Authentication issues**: Verify JWT_SECRET is set and tokens haven't expired
 5. **Subscription access**: Check user tier and PAR-Q completion status
 6. **Environment variables**: Ensure all required vars from `.env.example` are set in `.env`

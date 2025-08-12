@@ -66,10 +66,10 @@ fi
 
 # Generate Prisma client and push schema
 echo -e "${YELLOW}Generating Prisma client...${NC}"
-npx prisma generate
+cd backend && npx prisma generate
 
 echo -e "${YELLOW}Pushing database schema...${NC}"
-npx prisma db push
+cd backend && npx prisma db push
 
 echo -e "${GREEN}Database setup completed successfully!${NC}"
 
@@ -92,4 +92,4 @@ echo -e "${YELLOW}Next steps:${NC}"
 echo "1. Update the DATABASE_URL in .env with your actual PostgreSQL credentials"
 echo "2. Set ADMIN_EMAIL and ADMIN_PASSWORD in .env for custom admin credentials"
 echo "3. Run 'npm run dev:all' to start the full development environment"
-echo "4. Run 'npx prisma studio' to view and manage your database" 
+echo "4. Run 'cd backend && npx prisma studio' to view and manage your database" 
