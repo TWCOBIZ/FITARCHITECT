@@ -52,11 +52,7 @@ async function testExerciseSources() {
   console.log('\n🏋️ Testing exercise sources...');
   
   try {
-    const response = await fetch(`${BACKEND_URL}/api/diagnostic/exercise-sources`, {
-      headers: {
-        'Authorization': `Bearer ${authToken}`
-      }
-    });
+    const response = await fetch(`${BACKEND_URL}/api/diagnostic/exercise-sources`);
     
     console.log(`   Response status: ${response.status}`);
 
@@ -88,11 +84,7 @@ async function testExternalAPIs() {
   console.log('\n🌐 Testing external APIs...');
   
   try {
-    const response = await fetch(`${BACKEND_URL}/api/diagnostic/apis`, {
-      headers: {
-        'Authorization': `Bearer ${authToken}`
-      }
-    });
+    const response = await fetch(`${BACKEND_URL}/api/diagnostic/apis`);
     
     console.log(`   Response status: ${response.status}`);
 

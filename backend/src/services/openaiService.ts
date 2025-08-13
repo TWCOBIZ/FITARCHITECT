@@ -2,6 +2,47 @@ import { OpenAI } from 'openai';
 import { withRetry, RateLimiter } from '../utils/retryUtils';
 import { logger, logExternalApiCall, logWorkoutGeneration } from '../utils/logger';
 
+// Import exercise database at the top level
+let exerciseDatabase: any[] = [];
+
+try {
+  // Try multiple possible paths for exerciseDatabase
+  const paths = [
+    '../data/exerciseDatabase.js',
+    './data/exerciseDatabase.js',
+    '../data/exerciseDatabase',
+    './data/exerciseDatabase'
+  ];
+  
+  for (const dbPath of paths) {
+    try {
+      const result = require(dbPath);
+      exerciseDatabase = result.exerciseDatabase || result.default || result;
+      if (Array.isArray(exerciseDatabase) && exerciseDatabase.length > 0) {
+        console.log(`✅ Loaded exerciseDatabase from ${dbPath}, ${exerciseDatabase.length} exercises`);
+        break;
+      }
+    } catch (err) {
+      // Try next path
+    }
+  }
+  
+  if (!Array.isArray(exerciseDatabase) || exerciseDatabase.length === 0) {
+    console.warn('⚠️ Could not load exerciseDatabase, using fallback exercises');
+    // Minimal fallback exercises
+    exerciseDatabase = [
+      { name: 'Push-Ups', category: 'push', equipment: ['bodyweight'], difficulty: 'beginner' },
+      { name: 'Squats', category: 'legs', equipment: ['bodyweight'], difficulty: 'beginner' },
+      { name: 'Lunges', category: 'legs', equipment: ['bodyweight'], difficulty: 'beginner' },
+      { name: 'Plank', category: 'core', equipment: ['bodyweight'], difficulty: 'beginner' },
+      { name: 'Mountain Climbers', category: 'cardio', equipment: ['bodyweight'], difficulty: 'beginner' }
+    ];
+  }
+} catch (error) {
+  console.error('❌ Failed to load exerciseDatabase:', error.message);
+  exerciseDatabase = [];
+}
+
 // Exercise API fallback chain
 interface ExerciseAPIService {
   name: 'wger' | 'exercisedb' | 'local';
@@ -216,7 +257,6 @@ class LocalExerciseService implements ExerciseAPIService {
   
   async fetchExercises(profile: UserProfile): Promise<Exercise[]> {
     // Use existing local exercise database
-    const { exerciseDatabase } = require('../../data/exerciseDatabase');
     return exerciseDatabase.filter((ex: any) => {
       // Filter by user profile criteria
       if (profile.equipment && profile.equipment.length > 0) {
@@ -1032,7 +1072,6 @@ Return ONLY the JSON object, no additional text.`;
     const now = new Date().toISOString();
     
     // Use the comprehensive exercise database for fallback
-    const { exerciseDatabase } = require('../../data/exerciseDatabase');
     
     // Select appropriate exercises from the database
     const pushUps = exerciseDatabase.find((ex: any) => ex.name === 'Push-Ups');
