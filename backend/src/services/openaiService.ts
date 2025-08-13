@@ -216,7 +216,7 @@ class LocalExerciseService implements ExerciseAPIService {
   
   async fetchExercises(profile: UserProfile): Promise<Exercise[]> {
     // Use existing local exercise database
-    const { exerciseDatabase } = require('../data/exerciseDatabase');
+    const { exerciseDatabase } = require('../../data/exerciseDatabase');
     return exerciseDatabase.filter((ex: any) => {
       // Filter by user profile criteria
       if (profile.equipment && profile.equipment.length > 0) {
@@ -1032,7 +1032,7 @@ Return ONLY the JSON object, no additional text.`;
     const now = new Date().toISOString();
     
     // Use the comprehensive exercise database for fallback
-    const { exerciseDatabase } = require('../data/exerciseDatabase');
+    const { exerciseDatabase } = require('../../data/exerciseDatabase');
     
     // Select appropriate exercises from the database
     const pushUps = exerciseDatabase.find((ex: any) => ex.name === 'Push-Ups');

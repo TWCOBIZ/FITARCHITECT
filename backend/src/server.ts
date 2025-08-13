@@ -506,8 +506,8 @@ app.get('/api/diagnostics', authenticate, async (req: AuthenticatedRequest, res:
   }
 });
 
-// Exercise sources diagnostic endpoint
-app.get('/api/exercise-sources-test', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+// Exercise sources diagnostic endpoint (simplified for production)
+app.get('/api/diagnostic/exercise-sources', authenticateOptional, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const results: any = {
       timestamp: new Date().toISOString(),
@@ -653,8 +653,8 @@ app.get('/api/exercise-sources-test', authenticate, async (req: AuthenticatedReq
   }
 });
 
-// Test ExerciseDB API integration
-app.get('/api/test-exercisedb', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+// Test ExerciseDB API integration (simplified for production)
+app.get('/api/diagnostic/apis', authenticateOptional, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const testResults: any = {
       timestamp: new Date().toISOString(),
