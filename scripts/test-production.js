@@ -144,13 +144,48 @@ async function testWorkoutGeneration() {
     if (response.ok) {
       const data = await response.json();
       console.log('✅ Workout generation successful');
-      console.log(`   Generated plan with ${data.exercises?.length || 0} exercises`);
       
-      if (data.exercises && data.exercises.length > 0) {
-        console.log(`   Sample exercise: ${data.exercises[0].name}`);
-        return { success: true, exerciseCount: data.exercises.length };
+      // Check for workouts in the response (the actual structure)
+      let exerciseCount = 0;
+      let sampleExercise = null;
+      
+      if (data.workouts && Array.isArray(data.workouts)) {
+        // Count exercises across all workouts
+        data.workouts.forEach(workout => {
+          if (workout.exercises && Array.isArray(workout.exercises)) {
+            exerciseCount += workout.exercises.length;
+            if (!sampleExercise && workout.exercises[0]) {
+              sampleExercise = workout.exercises[0];
+            }
+          }
+        });
       }
-      return { success: true, exerciseCount: 0 };
+      
+      // Also check weeks structure
+      if (data.weeks && Array.isArray(data.weeks)) {
+        data.weeks.forEach(week => {
+          if (week.workouts && Array.isArray(week.workouts)) {
+            week.workouts.forEach(workout => {
+              if (workout.exercises && Array.isArray(workout.exercises)) {
+                exerciseCount += workout.exercises.length;
+                if (!sampleExercise && workout.exercises[0]) {
+                  sampleExercise = workout.exercises[0];
+                }
+              }
+            });
+          }
+        });
+      }
+      
+      console.log(`   Generated plan with ${exerciseCount} total exercises`);
+      if (sampleExercise) {
+        const exerciseName = typeof sampleExercise === 'object' ? 
+          (sampleExercise.name || sampleExercise.exerciseName || JSON.stringify(sampleExercise).substring(0, 50)) : 
+          sampleExercise;
+        console.log(`   Sample exercise: ${exerciseName}`);
+      }
+      
+      return { success: true, exerciseCount };
     } else {
       const errorText = await response.text();
       console.error('❌ Workout generation failed:', response.status, errorText);

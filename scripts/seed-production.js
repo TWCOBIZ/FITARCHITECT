@@ -6,13 +6,17 @@
  * Run locally with: DATABASE_URL="railway_url" node scripts/seed-production.js
  */
 
-require('dotenv').config();
+// DO NOT load .env file - we want to use production database
+// require('dotenv').config();
 const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
 const { exerciseDatabase: exerciseData } = require('../backend/src/data/exerciseDatabase');
 
-// Use Railway production DATABASE_URL if provided via command line
-const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://postgres:JIIWyJLnFjAZwWGqosIBxdoCrNWqmWMY@nozomi.proxy.rlwy.net:25063/railway';
+// ALWAYS use Railway production DATABASE_URL
+// To seed local database, use: DATABASE_URL="your_local_url" node scripts/seed-production.js
+const DATABASE_URL = process.env.RAILWAY_DATABASE_URL || 
+                    process.env.PROD_DATABASE_URL || 
+                    'postgresql://postgres:JIIWyJLnFjAZwWGqosIBxdoCrNWqmWMY@nozomi.proxy.rlwy.net:25063/railway';
 
 const prisma = new PrismaClient({
   datasources: {
