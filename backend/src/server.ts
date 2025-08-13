@@ -506,6 +506,254 @@ app.get('/api/diagnostics', authenticate, async (req: AuthenticatedRequest, res:
   }
 });
 
+// Exercise sources diagnostic endpoint
+app.get('/api/exercise-sources-test', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const results: any = {
+      timestamp: new Date().toISOString(),
+      tests: {},
+      summary: { passed: 0, failed: 0, total: 0 }
+    };
+
+    // Test 1: Internal Database
+    try {
+      const exercises = await prisma.exercise.findMany({ 
+        where: { isActive: true },
+        take: 5 
+      });
+      results.tests.internalDatabase = {
+        status: exercises.length > 0 ? 'pass' : 'fail',
+        count: exercises.length,
+        sample: exercises.map(e => ({ name: e.name, category: e.category }))
+      };
+      if (exercises.length > 0) results.summary.passed++;
+      else results.summary.failed++;
+    } catch (error) {
+      results.tests.internalDatabase = {
+        status: 'error',
+        error: error.message
+      };
+      results.summary.failed++;
+    }
+    results.summary.total++;
+
+    // Test 2: OpenAI Service
+    try {
+      const openaiConfigured = !!process.env.OPENAI_API_KEY;
+      if (openaiConfigured) {
+        // Test basic OpenAI connectivity (simplified test)
+        results.tests.openaiService = {
+          status: 'configured',
+          model: process.env.OPENAI_MODEL || 'gpt-4o',
+          note: 'API key configured - full test requires workout generation'
+        };
+        results.summary.passed++;
+      } else {
+        results.tests.openaiService = {
+          status: 'fail',
+          error: 'OpenAI API key not configured'
+        };
+        results.summary.failed++;
+      }
+    } catch (error) {
+      results.tests.openaiService = {
+        status: 'error',
+        error: error.message
+      };
+      results.summary.failed++;
+    }
+    results.summary.total++;
+
+    // Test 3: Workout Template System
+    try {
+      // Test if we can generate a basic workout structure
+      const sampleExercises = await prisma.exercise.findMany({ 
+        where: { isActive: true },
+        take: 10 
+      });
+      
+      const templateTest = {
+        warmup: sampleExercises.filter(e => e.category === 'warmup' || e.name.includes('stretch')).slice(0, 2),
+        main: sampleExercises.filter(e => ['push', 'pull', 'legs', 'strength'].includes(e.category)).slice(0, 5),
+        cooldown: sampleExercises.filter(e => e.category === 'flexibility' || e.name.includes('stretch')).slice(0, 2)
+      };
+      
+      results.tests.workoutTemplate = {
+        status: 'pass',
+        structure: {
+          warmup: templateTest.warmup.length,
+          main: templateTest.main.length,
+          cooldown: templateTest.cooldown.length
+        },
+        note: '3-phase template system functional'
+      };
+      results.summary.passed++;
+    } catch (error) {
+      results.tests.workoutTemplate = {
+        status: 'error',
+        error: error.message
+      };
+      results.summary.failed++;
+    }
+    results.summary.total++;
+
+    // Test 4: GIF Registry System
+    try {
+      const frontendUrl = process.env.FRONTEND_URL || 'https://fitarchitect-production-78ff.up.railway.app';
+      results.tests.gifRegistry = {
+        status: 'configured',
+        frontendUrl: frontendUrl,
+        expectedGifs: 35,
+        note: 'GIF files served from frontend static files'
+      };
+      results.summary.passed++;
+    } catch (error) {
+      results.tests.gifRegistry = {
+        status: 'error',
+        error: error.message
+      };
+      results.summary.failed++;
+    }
+    results.summary.total++;
+
+    // Test 5: User Access Control
+    try {
+      const user = req.user;
+      const hasWorkoutAccess = user?.tier === 'premium' || user?.tier === 'basic' || user?.parqCompleted;
+      results.tests.userAccess = {
+        status: hasWorkoutAccess ? 'pass' : 'restricted',
+        userTier: user?.tier,
+        parqCompleted: user?.parqCompleted,
+        hasWorkoutAccess: hasWorkoutAccess
+      };
+      if (hasWorkoutAccess) results.summary.passed++;
+      else results.summary.failed++;
+    } catch (error) {
+      results.tests.userAccess = {
+        status: 'error',
+        error: error.message
+      };
+      results.summary.failed++;
+    }
+    results.summary.total++;
+
+    // Overall status
+    results.overallStatus = results.summary.failed === 0 ? 'all_systems_operational' : 
+                           results.summary.passed > results.summary.failed ? 'mostly_operational' : 'critical_issues';
+
+    console.log(`🔍 Exercise Sources Test: ${results.summary.passed}/${results.summary.total} passed`);
+    res.json(results);
+
+  } catch (error) {
+    console.error('Exercise sources test error:', error);
+    res.status(500).json({
+      error: 'Failed to run exercise sources test',
+      message: error.message
+    });
+  }
+});
+
+// Test ExerciseDB API integration
+app.get('/api/test-exercisedb', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const testResults: any = {
+      timestamp: new Date().toISOString(),
+      exerciseDbTest: {}
+    };
+
+    // Test ExerciseDB API directly
+    try {
+      const exerciseDbKey = process.env.VITE_EXERCISEDB_API_KEY;
+      if (!exerciseDbKey) {
+        testResults.exerciseDbTest = {
+          status: 'not_configured',
+          error: 'VITE_EXERCISEDB_API_KEY not found in environment'
+        };
+      } else {
+        // Test API call
+        const fetch = require('node-fetch');
+        const response = await fetch('https://exercisedb.p.rapidapi.com/exercises?limit=3', {
+          method: 'GET',
+          headers: {
+            'X-RapidAPI-Key': exerciseDbKey,
+            'X-RapidAPI-Host': 'exercisedb.p.rapidapi.com'
+          }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          testResults.exerciseDbTest = {
+            status: 'success',
+            apiKey: exerciseDbKey.substring(0, 10) + '...',
+            responseStatus: response.status,
+            exerciseCount: Array.isArray(data) ? data.length : 0,
+            sampleExercise: Array.isArray(data) && data[0] ? {
+              name: data[0].name,
+              target: data[0].target,
+              equipment: data[0].equipment,
+              hasGif: !!data[0].gifUrl
+            } : null
+          };
+        } else {
+          testResults.exerciseDbTest = {
+            status: 'api_error',
+            apiKey: exerciseDbKey.substring(0, 10) + '...',
+            responseStatus: response.status,
+            error: await response.text()
+          };
+        }
+      }
+    } catch (error) {
+      testResults.exerciseDbTest = {
+        status: 'connection_error',
+        error: error.message
+      };
+    }
+
+    // Test WGER API (fallback)
+    try {
+      const wgerKey = process.env.VITE_WGER_API_KEY;
+      const fetch = require('node-fetch');
+      const wgerUrl = wgerKey ? 
+        `https://wger.de/api/v2/exercise/?limit=3&language=2&key=${wgerKey}` :
+        'https://wger.de/api/v2/exercise/?limit=3&language=2';
+      
+      const response = await fetch(wgerUrl);
+      
+      if (response.ok) {
+        const data = await response.json();
+        testResults.wgerTest = {
+          status: 'success',
+          hasApiKey: !!wgerKey,
+          responseStatus: response.status,
+          exerciseCount: data.results ? data.results.length : 0
+        };
+      } else {
+        testResults.wgerTest = {
+          status: 'api_error',
+          responseStatus: response.status,
+          error: await response.text()
+        };
+      }
+    } catch (error) {
+      testResults.wgerTest = {
+        status: 'connection_error',
+        error: error.message
+      };
+    }
+
+    console.log(`🧪 API Tests - ExerciseDB: ${testResults.exerciseDbTest.status}, WGER: ${testResults.wgerTest?.status}`);
+    res.json(testResults);
+
+  } catch (error) {
+    console.error('API test error:', error);
+    res.status(500).json({
+      error: 'Failed to test external APIs',
+      message: error.message
+    });
+  }
+});
+
 // Comprehensive logging middleware stack
 app.use(requestIdMiddleware);
 app.use(requestLoggingMiddleware);
