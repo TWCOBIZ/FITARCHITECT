@@ -1,3 +1,3 @@
 window.__RUNTIME_CONFIG__ = {
-  API_URL: "https://fitarchitect-production.up.railway.app"
+  API_URL: "http://localhost:3001"
 };

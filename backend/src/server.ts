@@ -3585,99 +3585,11 @@ app.post('/api/admin/2fa/setup', authenticate, requireAdmin, async (req, res) =>
   }
 });
 
-// Generate a meal plan using AI
-// Meal Plans CRUD Operations
-app.get('/api/meal-plans', authenticate, async (req: AuthenticatedRequest, res: Response) => {
-  try {
-    const user = req.user!;
-    const mealPlans = await prisma.mealPlan.findMany({
-      where: { userId: user.id },
-      orderBy: { createdAt: 'desc' },
-      take: 10 // Limit to 10 most recent plans
-    });
+// NOTE: Meal plan routes are handled by mealPlanRoutes module imported above
 
-    res.json({ mealPlans });
-  } catch (error) {
-    console.error('Failed to fetch meal plans:', error);
-    res.status(500).json({ error: 'Failed to fetch meal plans' });
-  }
-});
+// Removed duplicate /api/meal-plans/generate route - handled by mealPlanRoutes module
 
-app.post('/api/meal-plans/generate', authenticate, async (req: AuthenticatedRequest, res: Response) => {
-  try {
-    const { dietType, days, preferences } = req.body;
-    const user = req.user!;
-    
-    // Build user profile from user data with detailed logging
-    const userProfile = {
-      age: user.age || 30,
-      height: user.height || 170, // cm
-      weight: user.weight || 70, // kg
-      gender: user.gender || 'other',
-      activityLevel: user.activityLevel || 'moderate',
-      fitnessGoals: user.fitnessGoals || ['general_fitness'],
-      dietaryPreferences: user.dietaryPreferences || []
-    };
-
-    console.log('DEBUG: User profile for meal generation:', JSON.stringify(userProfile, null, 2));
-    console.log('DEBUG: User activityLevel type:', typeof userProfile.activityLevel, 'value:', userProfile.activityLevel);
-
-    // Generate the meal plan using OpenAI
-    const generatedPlan = await openaiService.generateMealPlan(userProfile, {
-      dietType: dietType || 'balanced',
-      days: days || 7,
-      ...preferences
-    });
-    
-    // Generate shopping list from meal plan
-    const shoppingList = generateShoppingList(generatedPlan);
-    
-    // Save the generated plan to the database
-    const savedPlan = await prisma.mealPlan.create({
-      data: {
-        userId: user.id,
-        dietType: dietType || 'balanced',
-        meals: generatedPlan,
-        shoppingList: shoppingList,
-      },
-    });
-
-    res.status(200).json({ 
-      id: savedPlan.id,
-      meals: generatedPlan,
-      shoppingList: shoppingList,
-      createdAt: savedPlan.createdAt,
-      dietType: savedPlan.dietType
-    });
-  } catch (error) {
-    console.error('Failed to generate meal plan:', error);
-    res.status(500).json({ error: 'Failed to generate meal plan. Please try again.' });
-  }
-});
-
-app.delete('/api/meal-plans/:id', authenticate, async (req: AuthenticatedRequest, res: Response) => {
-  try {
-    const { id } = req.params;
-    const user = req.user!;
-    
-    // Verify ownership and delete
-    const deletedPlan = await prisma.mealPlan.deleteMany({
-      where: { 
-        id: parseInt(id, 10),
-        userId: user.id 
-      }
-    });
-
-    if (deletedPlan.count === 0) {
-      return res.status(404).json({ error: 'Meal plan not found or access denied' });
-    }
-
-    res.json({ message: 'Meal plan deleted successfully' });
-  } catch (error) {
-    console.error('Failed to delete meal plan:', error);
-    res.status(500).json({ error: 'Failed to delete meal plan' });
-  }
-});
+// Removed duplicate /api/meal-plans/:id delete route - handled by mealPlanRoutes module
 
 // Helper function to generate shopping list from meal plan
 function generateShoppingList(mealPlan: any[]): any[] {
