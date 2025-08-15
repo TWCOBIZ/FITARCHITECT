@@ -495,7 +495,7 @@ async function createIntelligentWorkoutPlan(plan: DefaultPlan, user: any): Promi
 
   return {
     id: `intelligent-${plan.key}-${Date.now()}`,
-    name: `AI-Powered ${plan.title}`,
+    name: `Personalized ${plan.title}`,
     description: `Intelligent ${plan.description} with progressive overload and injury prevention`,
     duration: 3,
     weeks: weeks,
@@ -757,7 +757,7 @@ const WorkoutPage: React.FC = () => {
           setGenerationProgress
         );
         
-        toast.success('🧠 Your AI-optimized workout is ready! Injury prevention & progressive overload applied.');
+        toast.success('🧠 Your optimized workout is ready! Injury prevention & progressive overload applied.');
         setSelectedDefault(null);
         setPendingGoalSelection(null);
       } catch (error) {
@@ -804,7 +804,7 @@ const WorkoutPage: React.FC = () => {
           setGenerationProgress
         );
         
-        toast.success('🧠 Your AI-optimized workout is ready! Injury prevention & progressive overload applied.', { id: 'workout-generation' });
+        toast.success('🧠 Your optimized workout is ready! Injury prevention & progressive overload applied.', { id: 'workout-generation' });
         
         // Clear selection since we've generated the plan
         setSelectedDefault(null);
@@ -838,11 +838,11 @@ const WorkoutPage: React.FC = () => {
   // Get intelligent messaging based on goal
   const getMotivationalMessage = (goal: string): string => {
     const messages = {
-      'build-muscle': '🧠 FitArchitect AI analyzing your muscle-building profile...',
+      'build-muscle': '🧠 Analyzing your muscle-building profile...',
       'lose-weight': '🔥 Applying intelligent fat-burning protocols...',
-      'increase-endurance': '⚡ Optimizing your endurance training with AI...'
+      'increase-endurance': '⚡ Optimizing your endurance training...'
     };
-    return messages[goal as keyof typeof messages] || '🚀 FitArchitect AI crafting your personalized workout...';
+    return messages[goal as keyof typeof messages] || '🚀 Creating your personalized workout...';
   };
 
   // Nike Training Club Style Loading Component
@@ -850,19 +850,19 @@ const WorkoutPage: React.FC = () => {
     const goalData = {
       'build-muscle': {
         emoji: '🧠',
-        title: 'FitArchitect AI: Muscle Building',
+        title: 'Muscle Building Program',
         color: 'from-red-600 to-orange-600',
         message: 'Generating your personalized muscle-building plan...'
       },
       'lose-weight': {
         emoji: '🧠',
-        title: 'FitArchitect AI: Fat Burning',
+        title: 'Fat Burning Program',
         color: 'from-orange-600 to-yellow-600',
         message: 'Creating your optimized fat-burning workout...'
       },
       'increase-endurance': {
         emoji: '🧠',
-        title: 'FitArchitect AI: Endurance Training',
+        title: 'Endurance Training Program',
         color: 'from-blue-600 to-cyan-600',
         message: 'Designing your endurance improvement program...'
       }
@@ -922,7 +922,7 @@ const WorkoutPage: React.FC = () => {
           {/* Premium Positioning Text */}
           <div className="text-center">
             <p className="text-white/90 text-sm mb-2">
-              Our AI is working with advanced algorithms to create your perfect workout
+              Working with advanced algorithms to create your perfect workout
             </p>
             <p className="text-white/70 text-xs">
               ✨ Powered by FitArchitect's proprietary fitness intelligence engine
@@ -1013,7 +1013,7 @@ const WorkoutPage: React.FC = () => {
     
     try {
       setAILoading(true);
-      // Use intelligent workout service to create AI-powered plan
+      // Use intelligent workout service to create personalized plan
       const intelligentPlan = await createIntelligentWorkoutPlan(selectedPlan, user);
       
       // 🎯 HICK'S LAW FIX: Auto-save for complete profiles (skip customization)
@@ -1048,7 +1048,7 @@ const WorkoutPage: React.FC = () => {
         animateTabTransition('current');
       } else {
         setCustomizingPlan(fallbackPlan);
-        toast.error('Using basic plan - AI features temporarily unavailable');
+        toast.error('Using basic plan - advanced features temporarily unavailable');
       }
     } finally {
       setAILoading(false);
@@ -1123,7 +1123,7 @@ const WorkoutPage: React.FC = () => {
       // Create a DefaultPlan-like object from StreamlinedWorkoutGenerator params
       const defaultPlanFromParams: DefaultPlan = {
         key: params.fitnessGoal,
-        title: `AI ${params.fitnessGoal.charAt(0).toUpperCase() + params.fitnessGoal.slice(1)} Plan`,
+        title: `${params.fitnessGoal.charAt(0).toUpperCase() + params.fitnessGoal.slice(1)} Plan`,
         description: `Personalized ${params.fitnessGoal} workout plan tailored to your preferences`,
         weeks: 3,
         details: [
@@ -1189,7 +1189,7 @@ const WorkoutPage: React.FC = () => {
     }
   };
 
-  // Allow test user to always generate AI workouts
+  // Allow test user to always generate workouts
   const canGenerateAI = isTestUser(user?.email) ? true : user?.parqCompleted;
   
   const handleGenerateAIClick = async () => {
@@ -1205,7 +1205,7 @@ const WorkoutPage: React.FC = () => {
       toast.loading('Checking your access...', { id: 'generation-check' });
       
       if (!canGenerateAI && !isTestUser(user?.email)) {
-        toast.error('Please complete the PAR-Q health assessment to unlock AI workout generation.', {
+        toast.error('Please complete the PAR-Q health assessment to unlock personalized workout generation.', {
           id: 'generation-check',
           duration: 5000
         });
@@ -1403,7 +1403,7 @@ const WorkoutPage: React.FC = () => {
                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                     </svg>
-                    Generate AI-Powered Workout Plan
+                    Generate Personalized Workout Plan
                     <span className="bg-white/20 px-2 py-1 rounded-lg text-sm font-normal">Personalized</span>
                   </>
                 )}
@@ -1424,7 +1424,7 @@ const WorkoutPage: React.FC = () => {
             )}
             {canGenerateAI && (user as any)?.tier === 'free' && !isTestUser(user?.email) && freeDaysRemaining > 0 && (
               <div className="mb-4 text-blue-600 font-semibold bg-blue-900/20 border border-blue-600 rounded p-3">
-                🎉 Free Trial: {freeDaysRemaining} days remaining for unlimited AI workout generation!
+                🎉 Free Trial: {freeDaysRemaining} days remaining for unlimited workout generation!
               </div>
             )}
             {canGenerateAI && (user as any)?.tier === 'free' && !isTestUser(user?.email) && freeDaysRemaining === 0 && (
@@ -1440,7 +1440,7 @@ const WorkoutPage: React.FC = () => {
               />
             )}
             <h2 className="text-2xl font-bold mb-2 mt-8">Choose Your Goal</h2>
-            <p className="text-gray-400 mb-8">Select your fitness goal for AI-powered workout generation with injury prevention & progressive overload</p>
+            <p className="text-gray-400 mb-8">Select your fitness goal for personalized workout generation with injury prevention & progressive overload</p>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
               {defaultPlans.map((plan) => {
                 const goalEmojis = {
@@ -1509,7 +1509,7 @@ const WorkoutPage: React.FC = () => {
                         <span className="text-xs text-gray-500">{plan.weeks} weeks</span>
                         {profileCompleteness >= 80 ? (
                           <span className="text-xs text-green-400 font-semibold flex items-center gap-1">
-                            🧠 AI Ready
+                            🧠 Ready
                           </span>
                         ) : (
                           <span className="text-xs text-orange-400 font-semibold flex items-center gap-1">
@@ -1544,7 +1544,7 @@ const WorkoutPage: React.FC = () => {
                     </svg>
                   </div>
                   <div>
-                    <h3 className="text-green-400 font-semibold">FitArchitect AI Ready</h3>
+                    <h3 className="text-green-400 font-semibold">Profile Complete</h3>
                     <p className="text-green-300 text-sm">Your profile is optimized for intelligent workout generation with injury prevention & progressive overload</p>
                   </div>
                 </div>
@@ -1629,7 +1629,7 @@ const WorkoutPage: React.FC = () => {
                         🧠 {activePlan.name}
                       </h2>
                       <p className="text-purple-200 text-sm lg:text-base">
-                        AI-powered with adaptive progression
+                        Adaptive progression included
                       </p>
                     </div>
                   </div>
@@ -1707,7 +1707,7 @@ const WorkoutPage: React.FC = () => {
                 </div>
                 <h2 className="text-2xl md:text-3xl font-bold mb-4 text-white">Ready to Get Started?</h2>
                 <p className="text-gray-400 text-base md:text-lg mb-6 leading-relaxed">
-                  No active workout plan found. Generate an AI-powered plan or choose from our curated workouts to see your program here.
+                  No active workout plan found. Generate a personalized plan or choose from our curated workouts to see your program here.
                 </p>
                 <button
                   onClick={() => animateTabTransition('plans')}

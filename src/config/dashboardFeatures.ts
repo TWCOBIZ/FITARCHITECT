@@ -16,7 +16,7 @@ export const dashboardFeatures: DashboardFeature[] = [
   {
     key: 'workout',
     title: 'Workout Generation',
-    description: 'AI-powered personalized workout plans',
+    description: 'Personalized workout plans',
     icon: '💪',
     path: '/workouts',
     requiresSubscription: 'basic',

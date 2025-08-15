@@ -34,7 +34,7 @@ const FREE_PLAN: Plan = {
   features: [
     { text: 'Access to basic features', included: true },
     { text: 'Limited workout plans', included: true },
-    { text: 'No AI or premium content', included: false },
+    { text: 'No premium content', included: false },
     { text: 'No nutrition tracking', included: false },
     { text: 'No trainer support', included: false }
   ]

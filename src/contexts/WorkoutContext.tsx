@@ -636,7 +636,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
     if (!activePlan && workoutPlans.length === 0) {
       suggestions.push({
         action: 'Generate Your First Workout',
-        message: 'Get started with an AI-powered workout plan',
+        message: 'Get started with a personalized workout plan',
         route: '/workouts'
       });
     }

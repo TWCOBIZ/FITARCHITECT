@@ -50,7 +50,7 @@ const LandingPage = () => {
             transition={{ duration: 0.8, delay: 0.2 }}
             className="text-xl md:text-2xl mb-8 text-gray-300"
           >
-            Your personal AI-powered fitness architect
+            Your personal fitness architect
           </motion.p>
           
           <motion.div

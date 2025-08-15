@@ -435,7 +435,7 @@ const Profile: React.FC = () => {
       // Handle seamless return to workout generation
       if (newCompletionPercentage === 100 && pendingGoal && returnTo === 'workouts') {
         // Profile is complete, redirect to workouts with goal and trigger generation
-        toast.success('FitArchitect AI Ready! Generating your workout...', {
+        toast.success('Profile Complete! Generating your workout...', {
           style: {
             background: '#1f2937',
             color: '#fff',

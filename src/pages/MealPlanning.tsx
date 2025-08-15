@@ -742,7 +742,7 @@ const MealPlanningCore: React.FC = () => {
         <DietaryPreferencesIndicator />
         
         <div className="mb-6">
-          <h2 className="text-2xl sm:text-3xl font-bold mb-4 sm:mb-6">AI Meal Planning</h2>
+          <h2 className="text-2xl sm:text-3xl font-bold mb-4 sm:mb-6">Meal Planning</h2>
           
           {/* Mobile Action Buttons - Stacked */}
           <div className="flex flex-col sm:hidden gap-3 mb-4">

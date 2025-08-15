@@ -39,7 +39,7 @@ const TrialStatusBanner: React.FC<TrialStatusBannerProps> = ({ className = '' })
     if (isEligible && !isActive) {
       return {
         title: 'Start Your Free 3-Day Trial',
-        description: 'Generate unlimited AI-powered workouts for 3 days',
+        description: 'Generate unlimited personalized workouts for 3 days',
         action: 'Start Trial',
         color: 'from-green-600 to-green-700',
         icon: '🚀'

@@ -654,9 +654,9 @@ const SettingsPanel: React.FC = () => {
 
 const getFeatureDescription = (feature: string): string => {
   const descriptions: Record<string, string> = {
-    workoutGeneration: 'AI-powered workout plan generation',
+    workoutGeneration: 'Personalized workout plan generation',
     nutritionTracking: 'Food logging and nutrition analysis',
-    mealPlanning: 'AI meal plan recommendations',
+    mealPlanning: 'Personalized meal plan recommendations',
     barcodeScanning: 'Barcode scanning for food items',
     telegramIntegration: 'Telegram bot notifications',
     analytics: 'User analytics dashboard',
