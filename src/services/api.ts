@@ -10,9 +10,37 @@ interface ExtendedAxiosRequestConfig extends AxiosRequestConfig {
   skipHealthCheck?: boolean
 }
 
-// Create axios instance with enhanced configuration
+// Create axios instance with enhanced configuration  
+const getApiBaseUrl = () => {
+  // 1. First check runtime config (set during deployment)
+  const runtimeApiUrl = (window as any).__RUNTIME_CONFIG__?.API_URL;
+  if (runtimeApiUrl && runtimeApiUrl !== 'VITE_API_URL_PLACEHOLDER') {
+    console.log('Using runtime config API URL:', runtimeApiUrl);
+    return runtimeApiUrl;
+  }
+  
+  // 2. Check build-time environment variable
+  const envApiUrl = import.meta.env.VITE_API_URL;
+  if (envApiUrl) {
+    console.log('Using build-time API URL:', envApiUrl);
+    return envApiUrl;
+  }
+  
+  // 3. Production fallback - use production backend URL, never localhost
+  if (import.meta.env.PROD) {
+    const productionUrl = 'https://fitarchitect-production.up.railway.app';
+    console.log('Using production fallback API URL:', productionUrl);
+    return productionUrl;
+  }
+  
+  // 4. Development fallback
+  const developmentUrl = 'http://localhost:3001';
+  console.log('Using development API URL:', developmentUrl);
+  return developmentUrl;
+};
+
 const api: AxiosInstance = axios.create({
-  baseURL: (window as any).__RUNTIME_CONFIG__?.API_URL || import.meta.env.VITE_API_URL || (import.meta.env.PROD ? 'http://localhost:3001' : ''),
+  baseURL: getApiBaseUrl(),
   timeout: 30000, // 30 second timeout
   headers: {
     'Content-Type': 'application/json',
