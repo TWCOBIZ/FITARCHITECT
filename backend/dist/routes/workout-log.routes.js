@@ -24,6 +24,7 @@ router.post('/', auth_1.authenticate, [
     const workoutLog = await prisma_1.prisma.workoutLog.create({
         data: {
             userId,
+            planId: workoutId, // Fixing field name to match schema
             workoutId,
             exercises,
             duration: duration || 0,

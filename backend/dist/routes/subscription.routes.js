@@ -14,7 +14,7 @@ const logger_1 = require("../utils/logger");
 const router = (0, express_1.Router)();
 // Initialize Stripe
 const stripe = new stripe_1.default(process.env.STRIPE_SECRET_KEY, {
-    apiVersion: '2024-06-20'
+    apiVersion: '2022-11-15'
 });
 // Get available subscription plans
 router.get('/subscription/plans', (0, errorHandler_1.asyncHandler)(async (req, res) => {
@@ -98,7 +98,7 @@ router.get('/current', auth_1.authenticate, (0, errorHandler_1.asyncHandler)(asy
             status: 'active'
         },
         include: {
-            plan: true
+            planRef: true
         }
     });
     res.json({
@@ -175,36 +175,35 @@ router.post('/create', auth_1.authenticate, validation_1.subscriptionValidation,
             payment_settings: { save_default_payment_method: 'on_subscription' },
             expand: ['latest_invoice.payment_intent'],
         });
+        // Create plan first
+        const dbPlan = await prisma_1.prisma.plan.create({
+            data: {
+                name: planType,
+                price: plan.price
+            }
+        });
         // Save subscription to database
         const dbSubscription = await prisma_1.prisma.subscription.create({
             data: {
                 userId,
-                stripeSubscriptionId: stripeSubscription.id,
-                stripeCustomerId,
+                plan: planType,
                 status: stripeSubscription.status,
-                currentPeriodStart: new Date(stripeSubscription.current_period_start * 1000),
-                currentPeriodEnd: new Date(stripeSubscription.current_period_end * 1000),
-                plan: {
-                    create: {
-                        name: planType,
-                        stripePriceId: plan.priceId,
-                        amount: plan.price,
-                        currency: 'usd',
-                        interval: 'month'
-                    }
-                }
-            },
-            include: {
-                plan: true
+                startDate: new Date(stripeSubscription.current_period_start * 1000),
+                endDate: new Date(stripeSubscription.current_period_end * 1000),
+                planId: dbPlan.id
             }
         });
-        // Update user tier if subscription is active
-        if (stripeSubscription.status === 'active') {
-            await prisma_1.prisma.userProfile.update({
-                where: { id: userId },
-                data: { tier: planType }
-            });
-        }
+        // Update user tier and stripe info
+        await prisma_1.prisma.userProfile.update({
+            where: { id: userId },
+            data: {
+                tier: stripeSubscription.status === 'active' ? planType : user.tier,
+                stripeSubscriptionId: stripeSubscription.id,
+                subscriptionStatus: stripeSubscription.status,
+                subscriptionStartDate: new Date(stripeSubscription.current_period_start * 1000),
+                subscriptionEndDate: new Date(stripeSubscription.current_period_end * 1000)
+            }
+        });
         logger_1.logger.info('Subscription created', {
             userId,
             planType,
@@ -242,7 +241,7 @@ router.get('/:subscriptionId', auth_1.authenticate, (0, express_validator_1.para
             userId
         },
         include: {
-            plan: true
+            planRef: true
         }
     });
     if (!subscription) {
@@ -270,15 +269,22 @@ router.post('/cancel/:subscriptionId', auth_1.authenticate, (0, express_validato
     if (!subscription) {
         throw new validation_1.AppError(404, 'Subscription not found');
     }
+    // Get user with stripe subscription ID
+    const user = await prisma_1.prisma.userProfile.findUnique({
+        where: { id: userId },
+        select: { stripeSubscriptionId: true }
+    });
+    if (!(user === null || user === void 0 ? void 0 : user.stripeSubscriptionId)) {
+        throw new validation_1.AppError(404, 'Stripe subscription not found');
+    }
     try {
         // Cancel in Stripe
-        const stripeSubscription = await stripe.subscriptions.update(subscription.stripeSubscriptionId, { cancel_at_period_end: true });
+        const stripeSubscription = await stripe.subscriptions.update(user.stripeSubscriptionId, { cancel_at_period_end: true });
         // Update in database
         await prisma_1.prisma.subscription.update({
             where: { id: subscriptionId },
             data: {
-                status: 'cancel_at_period_end',
-                cancelAt: new Date(stripeSubscription.cancel_at * 1000)
+                status: 'cancel_at_period_end'
             }
         });
         logger_1.logger.info('Subscription cancelled', { userId, subscriptionId });

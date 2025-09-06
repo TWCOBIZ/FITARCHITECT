@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.subscriptionValidation = exports.workoutValidation = exports.profileValidation = exports.authValidation = exports.requireCompleteProfile = exports.handleValidationErrors = exports.AppError = void 0;
+exports.idValidation = exports.paginationValidation = exports.flaggedContentActionValidation = exports.notificationCreateValidation = exports.workoutUpdateValidation = exports.workoutCreateValidation = exports.exerciseUpdateValidation = exports.exerciseCreateValidation = exports.subscriptionValidation = exports.workoutValidation = exports.profileValidation = exports.authValidation = exports.requireCompleteProfile = exports.handleValidationErrors = exports.AppError = void 0;
 const express_validator_1 = require("express-validator");
 const errorHandler_1 = require("./errorHandler");
 Object.defineProperty(exports, "AppError", { enumerable: true, get: function () { return errorHandler_1.AppError; } });
@@ -120,4 +120,172 @@ exports.subscriptionValidation = [
         .optional()
         .isString()
         .withMessage('Payment method ID must be a string')
+];
+// Admin endpoint validations
+exports.exerciseCreateValidation = [
+    (0, express_validator_1.body)('name')
+        .trim()
+        .isLength({ min: 3, max: 100 })
+        .withMessage('Exercise name must be between 3 and 100 characters'),
+    (0, express_validator_1.body)('description')
+        .trim()
+        .isLength({ min: 10, max: 500 })
+        .withMessage('Description must be between 10 and 500 characters'),
+    (0, express_validator_1.body)('category')
+        .optional()
+        .isIn(['warmup', 'strength', 'cardio', 'cooldown', 'flexibility', 'sports', 'functional', 'rehabilitation', 'core', 'legs', 'push', 'pull', 'fullbody'])
+        .withMessage('Invalid exercise category'),
+    (0, express_validator_1.body)('difficulty')
+        .optional()
+        .isIn(['beginner', 'intermediate', 'advanced'])
+        .withMessage('Difficulty must be beginner, intermediate, or advanced'),
+    (0, express_validator_1.body)('muscleGroups')
+        .optional()
+        .isArray()
+        .withMessage('Muscle groups must be an array'),
+    (0, express_validator_1.body)('equipment')
+        .optional()
+        .isArray({ min: 1 })
+        .withMessage('Equipment must be a non-empty array'),
+    (0, express_validator_1.body)('instructions')
+        .optional()
+        .isArray()
+        .withMessage('Instructions must be an array'),
+    (0, express_validator_1.body)('gifPath')
+        .optional()
+        .isString()
+        .withMessage('GIF path must be a string')
+];
+exports.exerciseUpdateValidation = [
+    (0, express_validator_1.body)('name')
+        .optional()
+        .trim()
+        .isLength({ min: 3, max: 100 })
+        .withMessage('Exercise name must be between 3 and 100 characters'),
+    (0, express_validator_1.body)('description')
+        .optional()
+        .trim()
+        .isLength({ min: 10, max: 500 })
+        .withMessage('Description must be between 10 and 500 characters'),
+    (0, express_validator_1.body)('category')
+        .optional()
+        .isIn(['warmup', 'strength', 'cardio', 'cooldown', 'flexibility', 'sports', 'functional', 'rehabilitation', 'core', 'legs', 'push', 'pull', 'fullbody'])
+        .withMessage('Invalid exercise category'),
+    (0, express_validator_1.body)('difficulty')
+        .optional()
+        .isIn(['beginner', 'intermediate', 'advanced'])
+        .withMessage('Difficulty must be beginner, intermediate, or advanced'),
+    (0, express_validator_1.body)('approvalStatus')
+        .optional()
+        .isIn(['pending', 'approved', 'flagged', 'hidden'])
+        .withMessage('Invalid approval status'),
+    (0, express_validator_1.body)('gifPath')
+        .optional()
+        .isString()
+        .withMessage('GIF path must be a string')
+];
+exports.workoutCreateValidation = [
+    (0, express_validator_1.body)('name')
+        .trim()
+        .isLength({ min: 3, max: 100 })
+        .withMessage('Workout name must be between 3 and 100 characters'),
+    (0, express_validator_1.body)('description')
+        .trim()
+        .isLength({ min: 10, max: 500 })
+        .withMessage('Description must be between 10 and 500 characters'),
+    (0, express_validator_1.body)('category')
+        .optional()
+        .isIn(['strength', 'cardio', 'flexibility', 'sports', 'functional', 'rehabilitation', 'fullbody'])
+        .withMessage('Invalid workout category'),
+    (0, express_validator_1.body)('difficulty')
+        .optional()
+        .isIn(['beginner', 'intermediate', 'advanced'])
+        .withMessage('Difficulty must be beginner, intermediate, or advanced'),
+    (0, express_validator_1.body)('duration')
+        .optional()
+        .isInt({ min: 1, max: 12 })
+        .withMessage('Duration must be between 1 and 12 weeks'),
+    (0, express_validator_1.body)('weeks')
+        .isObject()
+        .withMessage('Weeks structure is required'),
+    (0, express_validator_1.body)('targetMuscleGroups')
+        .optional()
+        .isArray()
+        .withMessage('Target muscle groups must be an array'),
+    (0, express_validator_1.body)('equipment')
+        .optional()
+        .isArray()
+        .withMessage('Equipment must be an array')
+];
+exports.workoutUpdateValidation = [
+    (0, express_validator_1.body)('name')
+        .optional()
+        .trim()
+        .isLength({ min: 3, max: 100 })
+        .withMessage('Workout name must be between 3 and 100 characters'),
+    (0, express_validator_1.body)('description')
+        .optional()
+        .trim()
+        .isLength({ min: 10, max: 500 })
+        .withMessage('Description must be between 10 and 500 characters'),
+    (0, express_validator_1.body)('category')
+        .optional()
+        .isIn(['strength', 'cardio', 'flexibility', 'sports', 'functional', 'rehabilitation', 'fullbody'])
+        .withMessage('Invalid workout category'),
+    (0, express_validator_1.body)('difficulty')
+        .optional()
+        .isIn(['beginner', 'intermediate', 'advanced'])
+        .withMessage('Difficulty must be beginner, intermediate, or advanced'),
+    (0, express_validator_1.body)('duration')
+        .optional()
+        .isInt({ min: 1, max: 12 })
+        .withMessage('Duration must be between 1 and 12 weeks')
+];
+exports.notificationCreateValidation = [
+    (0, express_validator_1.body)('title')
+        .trim()
+        .isLength({ min: 3, max: 100 })
+        .withMessage('Title must be between 3 and 100 characters'),
+    (0, express_validator_1.body)('message')
+        .trim()
+        .isLength({ min: 10, max: 500 })
+        .withMessage('Message must be between 10 and 500 characters'),
+    (0, express_validator_1.body)('type')
+        .optional()
+        .isIn(['system', 'user', 'error', 'warning', 'info'])
+        .withMessage('Invalid notification type'),
+    (0, express_validator_1.body)('severity')
+        .optional()
+        .isIn(['low', 'medium', 'high', 'critical'])
+        .withMessage('Invalid severity level')
+];
+exports.flaggedContentActionValidation = [
+    (0, express_validator_1.body)('action')
+        .isIn(['approve', 'reject', 'ban'])
+        .withMessage('Action must be approve, reject, or ban'),
+    (0, express_validator_1.body)('reason')
+        .optional()
+        .trim()
+        .isLength({ max: 200 })
+        .withMessage('Reason must be less than 200 characters')
+];
+exports.paginationValidation = [
+    (0, express_validator_1.query)('page')
+        .optional()
+        .isInt({ min: 1 })
+        .withMessage('Page must be a positive integer'),
+    (0, express_validator_1.query)('limit')
+        .optional()
+        .isInt({ min: 1, max: 100 })
+        .withMessage('Limit must be between 1 and 100'),
+    (0, express_validator_1.query)('search')
+        .optional()
+        .trim()
+        .isLength({ max: 100 })
+        .withMessage('Search term must be less than 100 characters')
+];
+exports.idValidation = [
+    (0, express_validator_1.param)('id')
+        .notEmpty()
+        .withMessage('ID parameter is required')
 ];

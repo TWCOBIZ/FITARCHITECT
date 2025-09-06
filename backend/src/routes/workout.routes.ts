@@ -235,7 +235,7 @@ router.post('/generate',
       );
 
       // Try to generate workout with OpenAI
-      const generationPromise = openaiService.generateWorkoutPlan(req.user);
+      const generationPromise = openaiService.generateWorkoutPlan(req.user as any);
       
       const result = await Promise.race([generationPromise, timeout]);
       
@@ -283,7 +283,7 @@ router.post('/generate',
 
       // Use smart template matching system
       const userProfile = req.user;
-      const selectedTemplate = WorkoutTemplateService.findBestTemplate(userProfile);
+      const selectedTemplate = WorkoutTemplateService.findBestTemplate(userProfile as any);
       // Convert template to plan format
       
       // Transform template weeks to workouts for frontend compatibility
@@ -344,7 +344,7 @@ router.post('/generate-instant',
     try {
       // Use smart template matching system directly (no OpenAI)
       const userProfile = req.user;
-      const selectedTemplate = WorkoutTemplateService.findBestTemplate(userProfile);
+      const selectedTemplate = WorkoutTemplateService.findBestTemplate(userProfile as any);
       
       // Transform template weeks to workouts for frontend compatibility
       const workouts = transformWeeksToWorkouts(selectedTemplate.weeks);

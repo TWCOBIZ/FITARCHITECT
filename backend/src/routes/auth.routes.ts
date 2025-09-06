@@ -233,7 +233,11 @@ const guestRegistrationHandler = asyncHandler(async (req: AuthenticatedRequest, 
       tier: 'guest',
       active: true,
       parqCompleted: false,
-      isAdmin: false
+      isAdmin: false,
+      gender: 'not_specified',
+      activityLevel: 'moderate',
+      fitnessGoals: [],
+      equipmentAvailability: []
     }
   });
   

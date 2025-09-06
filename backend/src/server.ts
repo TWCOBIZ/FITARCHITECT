@@ -1,4 +1,5 @@
 import * as dotenv from 'dotenv';
+import fs from 'fs';
 import path from 'path';
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
@@ -107,7 +108,7 @@ const requiredEnvVars = ['DATABASE_URL', 'JWT_SECRET'];
 const missingEnvVars = requiredEnvVars.filter(key => !process.env[key]);
 
 if (missingEnvVars.length > 0) {
-  logger.error('Missing required environment variables:', missingEnvVars);
+  logger.error('Missing required environment variables:', { metadata: { missingVars: missingEnvVars } });
   console.error('Please check your .env file and ensure these variables are set:', missingEnvVars.join(', '));
   process.exit(1);
 }
@@ -1470,8 +1471,8 @@ app.get('/api/admin/subscriptions/analytics', authenticate, requireAdmin, async 
       revenue: {
         total: totalRevenue._sum.amount || 0,
         monthly: monthlyRevenue._sum.amount || 0,
-        totalTransactions: totalRevenue._count,
-        monthlyTransactions: monthlyRevenue._count,
+        totalTransactions: totalRevenue._count.id,
+        monthlyTransactions: monthlyRevenue._count.id,
         trend: revenueByMonth
       },
       subscriptions: {
@@ -1485,8 +1486,8 @@ app.get('/api/admin/subscriptions/analytics', authenticate, requireAdmin, async 
       },
       growth: {
         newSubscriptionsThisMonth: newSubscriptions,
-        averageRevenuePerUser: totalRevenue._count > 0 ? 
-          ((totalRevenue._sum.amount || 0) / totalRevenue._count).toFixed(2) : '0.00'
+        averageRevenuePerUser: totalRevenue._count.id > 0 ? 
+          ((totalRevenue._sum.amount || 0) / totalRevenue._count.id).toFixed(2) : '0.00'
       }
     });
   } catch (error) {

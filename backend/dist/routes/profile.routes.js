@@ -131,7 +131,7 @@ router.post('/profile/avatar', auth_1.authenticate, cloudinaryService_1.upload.s
     const profilePictureUrl = req.file.path; // Cloudinary URL
     await prisma_1.prisma.userProfile.update({
         where: { id: userId },
-        data: { profilePicture: profilePictureUrl }
+        data: { avatar: profilePictureUrl }
     });
     logger_1.logger.info('Profile picture updated', { userId });
     res.json({
@@ -220,8 +220,9 @@ router.post('/parq-response', auth_1.authenticate, [
     const parqResponse = await prisma_1.prisma.parqResponse.create({
         data: {
             userId,
-            responses,
-            completedAt: completedAt ? new Date(completedAt) : new Date()
+            answers: responses,
+            flaggedQuestions: [],
+            notes: []
         }
     });
     // Update user profile to mark PARQ as completed
@@ -244,7 +245,7 @@ router.get('/parq-response', auth_1.authenticate, (0, errorHandler_1.asyncHandle
     }
     const parqResponse = await prisma_1.prisma.parqResponse.findFirst({
         where: { userId },
-        orderBy: { completedAt: 'desc' }
+        orderBy: { createdAt: 'desc' }
     });
     res.json({
         success: true,

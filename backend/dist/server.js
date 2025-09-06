@@ -37,6 +37,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const dotenv = __importStar(require("dotenv"));
+const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
 dotenv.config({ path: path_1.default.resolve(__dirname, '../../.env') });
 const express_1 = __importDefault(require("express"));
@@ -59,6 +60,8 @@ const subscription_routes_1 = __importDefault(require("./routes/subscription.rou
 const admin_routes_1 = __importDefault(require("./routes/admin.routes"));
 // Auth middleware
 const auth_1 = require("./auth");
+// Validation middleware
+const validation_1 = require("./middleware/validation");
 // Utils
 const logger_1 = require("./utils/logger");
 const app = (0, express_1.default)();
@@ -105,7 +108,7 @@ const uploadGifs = (0, multer_1.default)({
 const requiredEnvVars = ['DATABASE_URL', 'JWT_SECRET'];
 const missingEnvVars = requiredEnvVars.filter(key => !process.env[key]);
 if (missingEnvVars.length > 0) {
-    logger_1.logger.error('Missing required environment variables:', missingEnvVars);
+    logger_1.logger.error('Missing required environment variables:', { metadata: { missingVars: missingEnvVars } });
     console.error('Please check your .env file and ensure these variables are set:', missingEnvVars.join(', '));
     process.exit(1);
 }
@@ -954,7 +957,7 @@ app.get('/api/admin/dashboard/stats', auth_1.authenticate, auth_1.requireAdmin, 
                 return acc;
             }, {})
         };
-        res.json(stats);
+        res.json({ stats });
     }
     catch (error) {
         logger_1.logger.error('Error fetching dashboard stats:', error);
@@ -998,7 +1001,7 @@ app.get('/api/admin/dashboard/activity', auth_1.authenticate, auth_1.requireAdmi
         });
         // Sort by timestamp
         activities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-        res.json(activities.slice(0, 10));
+        res.json({ activity: activities.slice(0, 10) });
     }
     catch (error) {
         logger_1.logger.error('Error fetching dashboard activity:', error);
@@ -1061,6 +1064,1325 @@ app.post('/api/admin/impersonate', auth_1.authenticate, auth_1.requireAdmin, asy
     catch (error) {
         logger_1.logger.error('Failed to generate impersonation token', error);
         res.status(500).json({ error: 'Failed to impersonate user' });
+    }
+});
+// Admin exercise management endpoints
+app.get('/api/admin/exercises/categories', auth_1.authenticate, auth_1.requireAdmin, async (req, res) => {
+    try {
+        // Get distinct categories from exercises
+        const categories = await prisma_1.prisma.exercise.findMany({
+            select: { category: true },
+            distinct: ['category'],
+            where: { isActive: true }
+        });
+        const categoryList = categories.map(cat => cat.category).filter(Boolean);
+        res.json({ categories: categoryList });
+    }
+    catch (error) {
+        logger_1.logger.error('Error fetching exercise categories:', error);
+        res.status(500).json({ error: 'Failed to fetch categories' });
+    }
+});
+app.get('/api/admin/exercises', auth_1.authenticate, auth_1.requireAdmin, async (req, res) => {
+    try {
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 20;
+        const isActive = req.query.isActive !== 'false'; // default to true
+        const category = req.query.category;
+        const search = req.query.search;
+        const offset = (page - 1) * limit;
+        const where = { isActive };
+        if (category)
+            where.category = category;
+        if (search) {
+            where.name = { contains: search, mode: 'insensitive' };
+        }
+        const [exercises, total] = await Promise.all([
+            prisma_1.prisma.exercise.findMany({
+                where,
+                skip: offset,
+                take: limit,
+                orderBy: { updatedAt: 'desc' },
+                select: {
+                    id: true,
+                    name: true,
+                    category: true,
+                    muscleGroups: true,
+                    equipment: true,
+                    difficulty: true,
+                    approvalStatus: true,
+                    gifPath: true,
+                    isActive: true,
+                    createdAt: true,
+                    updatedAt: true
+                }
+            }),
+            prisma_1.prisma.exercise.count({ where })
+        ]);
+        res.json({
+            exercises,
+            total,
+            page,
+            limit,
+            totalPages: Math.ceil(total / limit)
+        });
+    }
+    catch (error) {
+        logger_1.logger.error('Error fetching admin exercises:', error);
+        res.status(500).json({ error: 'Failed to fetch exercises' });
+    }
+});
+// ============================================================================
+// COMPREHENSIVE ADMIN API ENDPOINTS - PHASE 1: CRITICAL MISSING ENDPOINTS
+// ============================================================================
+// Subscription Management System
+app.get('/api/admin/subscriptions', auth_1.authenticate, auth_1.requireAdmin, async (req, res) => {
+    try {
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 20;
+        const status = req.query.status;
+        const tier = req.query.tier;
+        const offset = (page - 1) * limit;
+        const where = {};
+        if (status)
+            where.subscriptionStatus = status;
+        if (tier)
+            where.tier = tier;
+        const [subscriptions, total] = await Promise.all([
+            prisma_1.prisma.userProfile.findMany({
+                where,
+                skip: offset,
+                take: limit,
+                select: {
+                    id: true,
+                    email: true,
+                    name: true,
+                    tier: true,
+                    subscriptionStatus: true,
+                    subscriptionStartDate: true,
+                    subscriptionEndDate: true,
+                    stripeCustomerId: true,
+                    stripeSubscriptionId: true,
+                    createdAt: true,
+                    updatedAt: true
+                },
+                orderBy: { updatedAt: 'desc' }
+            }),
+            prisma_1.prisma.userProfile.count({ where })
+        ]);
+        // Get payment history for each subscription
+        const subscriptionsWithPayments = await Promise.all(subscriptions.map(async (sub) => {
+            var _a;
+            const payments = await prisma_1.prisma.payment.findMany({
+                where: { userId: sub.id },
+                orderBy: { createdAt: 'desc' },
+                take: 5
+            });
+            return {
+                ...sub,
+                paymentHistory: payments,
+                totalRevenue: payments.reduce((sum, p) => sum + (p.amount || 0), 0),
+                lastPayment: ((_a = payments[0]) === null || _a === void 0 ? void 0 : _a.createdAt) || null
+            };
+        }));
+        res.json({
+            subscriptions: subscriptionsWithPayments,
+            total,
+            page,
+            limit,
+            totalPages: Math.ceil(total / limit)
+        });
+    }
+    catch (error) {
+        logger_1.logger.error('Error fetching admin subscriptions:', error);
+        res.status(500).json({ error: 'Failed to fetch subscriptions' });
+    }
+});
+app.get('/api/admin/plans', auth_1.authenticate, auth_1.requireAdmin, async (req, res) => {
+    try {
+        // Static subscription plans configuration
+        const plans = [
+            {
+                id: 'free',
+                name: 'Free',
+                price: 0,
+                interval: null,
+                features: [
+                    'Basic workout tracking',
+                    'Limited nutrition logging',
+                    'Community access'
+                ],
+                limits: {
+                    workoutsPerMonth: 10,
+                    nutritionEntriesPerDay: 3,
+                    customExercises: 5
+                }
+            },
+            {
+                id: 'basic',
+                name: 'Basic',
+                price: 9.99,
+                interval: 'month',
+                stripePriceId: process.env.STRIPE_BASIC_PRICE_ID,
+                features: [
+                    'Unlimited workouts',
+                    'Full nutrition tracking',
+                    'Meal planning',
+                    'Progress analytics',
+                    'Email support'
+                ],
+                limits: {
+                    workoutsPerMonth: -1, // unlimited
+                    nutritionEntriesPerDay: -1,
+                    customExercises: 50
+                }
+            },
+            {
+                id: 'premium',
+                name: 'Premium',
+                price: 19.99,
+                interval: 'month',
+                stripePriceId: process.env.STRIPE_PREMIUM_PRICE_ID,
+                features: [
+                    'Everything in Basic',
+                    'AI workout generation',
+                    'Barcode scanning',
+                    'Telegram notifications',
+                    'Advanced analytics',
+                    'Priority support'
+                ],
+                limits: {
+                    workoutsPerMonth: -1,
+                    nutritionEntriesPerDay: -1,
+                    customExercises: -1 // unlimited
+                }
+            }
+        ];
+        // Get current subscription counts
+        const subscriptionCounts = await prisma_1.prisma.userProfile.groupBy({
+            by: ['tier'],
+            _count: { tier: true }
+        });
+        const plansWithStats = plans.map(plan => {
+            var _a, _b;
+            return ({
+                ...plan,
+                currentSubscribers: ((_b = (_a = subscriptionCounts.find(s => s.tier === plan.id)) === null || _a === void 0 ? void 0 : _a._count) === null || _b === void 0 ? void 0 : _b.tier) || 0
+            });
+        });
+        res.json({ plans: plansWithStats });
+    }
+    catch (error) {
+        logger_1.logger.error('Error fetching subscription plans:', error);
+        res.status(500).json({ error: 'Failed to fetch subscription plans' });
+    }
+});
+app.get('/api/admin/subscriptions/analytics', auth_1.authenticate, auth_1.requireAdmin, async (req, res) => {
+    try {
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        // Revenue analytics
+        const totalRevenue = await prisma_1.prisma.payment.aggregate({
+            where: { status: 'completed' },
+            _sum: { amount: true },
+            _count: { id: true }
+        });
+        const monthlyRevenue = await prisma_1.prisma.payment.aggregate({
+            where: {
+                status: 'completed',
+                createdAt: { gte: thirtyDaysAgo }
+            },
+            _sum: { amount: true },
+            _count: { id: true }
+        });
+        // Subscription tier distribution
+        const tierDistribution = await prisma_1.prisma.userProfile.groupBy({
+            by: ['tier'],
+            _count: { tier: true }
+        });
+        // Churn analysis - users who cancelled in last 30 days
+        const churnedUsers = await prisma_1.prisma.userProfile.count({
+            where: {
+                subscriptionStatus: 'cancelled',
+                updatedAt: { gte: thirtyDaysAgo }
+            }
+        });
+        // Growth metrics - new subscriptions in last 30 days
+        const newSubscriptions = await prisma_1.prisma.userProfile.count({
+            where: {
+                tier: { not: 'free' },
+                createdAt: { gte: thirtyDaysAgo }
+            }
+        });
+        // Monthly revenue trend (last 6 months)
+        const revenueByMonth = await prisma_1.prisma.$queryRaw `
+      SELECT 
+        DATE_TRUNC('month', "createdAt") as month,
+        SUM(amount) as revenue,
+        COUNT(*) as transactions
+      FROM "Payment" 
+      WHERE status = 'completed' 
+        AND "createdAt" >= NOW() - INTERVAL '6 months'
+      GROUP BY month
+      ORDER BY month DESC
+    `;
+        res.json({
+            revenue: {
+                total: totalRevenue._sum.amount || 0,
+                monthly: monthlyRevenue._sum.amount || 0,
+                totalTransactions: totalRevenue._count.id,
+                monthlyTransactions: monthlyRevenue._count.id,
+                trend: revenueByMonth
+            },
+            subscriptions: {
+                tierDistribution: tierDistribution.map(t => ({
+                    tier: t.tier,
+                    count: t._count.tier
+                })),
+                churnCount: churnedUsers,
+                newSubscriptions,
+                churnRate: newSubscriptions > 0 ? (churnedUsers / newSubscriptions * 100).toFixed(2) : '0.00'
+            },
+            growth: {
+                newSubscriptionsThisMonth: newSubscriptions,
+                averageRevenuePerUser: totalRevenue._count.id > 0 ?
+                    ((totalRevenue._sum.amount || 0) / totalRevenue._count.id).toFixed(2) : '0.00'
+            }
+        });
+    }
+    catch (error) {
+        logger_1.logger.error('Error fetching subscription analytics:', error);
+        res.status(500).json({ error: 'Failed to fetch subscription analytics' });
+    }
+});
+// Workout Templates Management
+app.get('/api/admin/workout-templates', auth_1.authenticate, auth_1.requireAdmin, async (req, res) => {
+    try {
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 20;
+        const category = req.query.category;
+        const difficulty = req.query.difficulty;
+        const search = req.query.search;
+        const offset = (page - 1) * limit;
+        const where = {};
+        if (category)
+            where.category = category;
+        if (difficulty)
+            where.difficulty = difficulty;
+        if (search) {
+            where.OR = [
+                { name: { contains: search, mode: 'insensitive' } },
+                { description: { contains: search, mode: 'insensitive' } }
+            ];
+        }
+        const [templates, total] = await Promise.all([
+            prisma_1.prisma.workoutPlan.findMany({
+                where,
+                skip: offset,
+                take: limit,
+                include: {
+                    user: {
+                        select: { email: true, name: true }
+                    }
+                },
+                orderBy: { updatedAt: 'desc' }
+            }),
+            prisma_1.prisma.workoutPlan.count({ where })
+        ]);
+        res.json({
+            templates,
+            total,
+            page,
+            limit,
+            totalPages: Math.ceil(total / limit)
+        });
+    }
+    catch (error) {
+        logger_1.logger.error('Error fetching workout templates:', error);
+        res.status(500).json({ error: 'Failed to fetch workout templates' });
+    }
+});
+app.post('/api/admin/workout-templates', auth_1.authenticate, auth_1.requireAdmin, async (req, res) => {
+    try {
+        const { name, description, category, difficulty, duration, weeks, targetMuscleGroups, equipment } = req.body;
+        const template = await prisma_1.prisma.workoutPlan.create({
+            data: {
+                name,
+                description,
+                duration,
+                weeks,
+                targetMuscleGroups,
+                difficulty,
+                isDefault: true, // Admin-created templates are default
+                estimatedDuration: duration,
+                equipment: equipment || [],
+                source: 'admin',
+                userId: req.user.id
+            }
+        });
+        logger_1.logger.info('Admin created workout template', {
+            userId: req.user.id,
+            templateId: template.id,
+            templateName: name
+        });
+        res.status(201).json({ template });
+    }
+    catch (error) {
+        logger_1.logger.error('Error creating workout template:', error);
+        res.status(500).json({ error: 'Failed to create workout template' });
+    }
+});
+app.put('/api/admin/workout-templates/:id', auth_1.authenticate, auth_1.requireAdmin, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const updateData = req.body;
+        const template = await prisma_1.prisma.workoutPlan.update({
+            where: { id },
+            data: {
+                ...updateData,
+                updatedAt: new Date()
+            }
+        });
+        logger_1.logger.info('Admin updated workout template', {
+            userId: req.user.id,
+            templateId: id
+        });
+        res.json({ template });
+    }
+    catch (error) {
+        logger_1.logger.error('Error updating workout template:', error);
+        res.status(500).json({ error: 'Failed to update workout template' });
+    }
+});
+app.delete('/api/admin/workout-templates/:id', auth_1.authenticate, auth_1.requireAdmin, async (req, res) => {
+    try {
+        const { id } = req.params;
+        await prisma_1.prisma.workoutPlan.delete({
+            where: { id }
+        });
+        logger_1.logger.info('Admin deleted workout template', {
+            userId: req.user.id,
+            templateId: id
+        });
+        res.json({ message: 'Workout template deleted successfully' });
+    }
+    catch (error) {
+        logger_1.logger.error('Error deleting workout template:', error);
+        res.status(500).json({ error: 'Failed to delete workout template' });
+    }
+});
+// GIF Files Management
+app.get('/api/admin/gif-files', auth_1.authenticate, auth_1.requireAdmin, async (req, res) => {
+    try {
+        const fs = require('fs').promises;
+        const path = require('path');
+        const gifDirectories = [
+            { path: 'dist/exercise-gifs', category: 'general' },
+            { path: 'dist/exercise-gifs/strength', category: 'strength' },
+            { path: 'dist/exercise-gifs/cardio', category: 'cardio' },
+            { path: 'dist/exercise-gifs/flexibility', category: 'flexibility' },
+            { path: 'dist/exercise-gifs/warmup', category: 'warmup' },
+            { path: 'dist/exercise-gifs/sports', category: 'sports' }
+        ];
+        const gifFiles = [];
+        for (const dir of gifDirectories) {
+            try {
+                const fullPath = path.join(__dirname, '../../../', dir.path);
+                const files = await fs.readdir(fullPath);
+                for (const file of files) {
+                    if (file.endsWith('.gif')) {
+                        const filePath = path.join(fullPath, file);
+                        const stats = await fs.stat(filePath);
+                        gifFiles.push({
+                            path: `/exercise-gifs/${dir.category !== 'general' ? dir.category + '/' : ''}${file}`,
+                            filename: file,
+                            category: dir.category,
+                            size: stats.size,
+                            lastModified: stats.mtime.toISOString(),
+                            exerciseName: file.replace('.gif', '').replace(/-/g, ' ')
+                        });
+                    }
+                }
+            }
+            catch (dirError) {
+                console.warn(`Directory ${dir.path} not found or inaccessible:`, dirError);
+            }
+        }
+        // Sort by filename
+        gifFiles.sort((a, b) => a.filename.localeCompare(b.filename));
+        res.json(gifFiles);
+    }
+    catch (error) {
+        logger_1.logger.error('Error fetching GIF files:', error);
+        res.status(500).json({ error: 'Failed to fetch GIF files' });
+    }
+});
+// System Notifications
+app.get('/api/admin/notifications', auth_1.authenticate, auth_1.requireAdmin, async (req, res) => {
+    try {
+        // For now, return static system notifications
+        // In production, this would come from a notifications table
+        const notifications = [
+            {
+                id: '1',
+                type: 'system',
+                title: 'Database Backup Completed',
+                message: 'Daily database backup completed successfully at 2:00 AM',
+                severity: 'info',
+                read: false,
+                createdAt: new Date().toISOString()
+            },
+            {
+                id: '2',
+                type: 'user',
+                title: 'New User Registrations',
+                message: '15 new users registered in the last 24 hours',
+                severity: 'info',
+                read: false,
+                createdAt: new Date(Date.now() - 86400000).toISOString()
+            },
+            {
+                id: '3',
+                type: 'error',
+                title: 'API Rate Limit Exceeded',
+                message: 'External API rate limit exceeded for OpenAI service',
+                severity: 'warning',
+                read: true,
+                createdAt: new Date(Date.now() - 172800000).toISOString()
+            }
+        ];
+        res.json({ notifications });
+    }
+    catch (error) {
+        logger_1.logger.error('Error fetching admin notifications:', error);
+        res.status(500).json({ error: 'Failed to fetch notifications' });
+    }
+});
+app.post('/api/admin/notifications', auth_1.authenticate, auth_1.requireAdmin, validation_1.notificationCreateValidation, validation_1.handleValidationErrors, async (req, res) => {
+    try {
+        const { title, message, type, severity, targetUsers } = req.body;
+        // In production, this would create notifications in database
+        // For now, just log the notification creation
+        logger_1.logger.info('Admin created notification', {
+            userId: req.user.id,
+            title,
+            type,
+            severity,
+            targetUsers: targetUsers || 'all'
+        });
+        res.status(201).json({
+            message: 'Notification created successfully',
+            notification: {
+                id: Date.now().toString(),
+                title,
+                message,
+                type,
+                severity,
+                createdAt: new Date().toISOString()
+            }
+        });
+    }
+    catch (error) {
+        logger_1.logger.error('Error creating notification:', error);
+        res.status(500).json({ error: 'Failed to create notification' });
+    }
+});
+// Application Settings
+app.get('/api/admin/settings', auth_1.authenticate, auth_1.requireAdmin, async (req, res) => {
+    try {
+        // Complete application settings matching AppSettings interface
+        const settings = {
+            // General Settings
+            appName: process.env.APP_NAME || 'FitArchitect',
+            appDescription: 'AI-Powered Fitness & Nutrition Platform',
+            supportEmail: process.env.SUPPORT_EMAIL || 'support@fitarchitect.com',
+            maintenanceMode: false,
+            allowRegistrations: true,
+            requireEmailVerification: false,
+            defaultUserTier: 'free',
+            maxFreeUsers: 10000,
+            sessionTimeout: 7 * 24 * 60 * 60 * 1000, // 7 days in milliseconds
+            // Feature Toggles
+            features: {
+                workoutGeneration: !!process.env.OPENAI_API_KEY,
+                nutritionTracking: true,
+                mealPlanning: !!process.env.OPENAI_API_KEY,
+                barcodeScanning: true,
+                telegramIntegration: !!process.env.TELEGRAM_BOT_TOKEN,
+                analytics: true,
+                parqRequired: true
+            },
+            // Integration Settings
+            openaiSettings: {
+                enabled: !!process.env.OPENAI_API_KEY,
+                model: 'gpt-4',
+                maxTokens: 2000,
+                temperature: 0.7
+            },
+            stripeSettings: {
+                enabled: !!(process.env.STRIPE_SECRET_KEY && process.env.VITE_STRIPE_PUBLISHABLE_KEY),
+                webhookSecret: process.env.STRIPE_WEBHOOK_SECRET || ''
+            },
+            telegramSettings: {
+                enabled: !!process.env.TELEGRAM_BOT_TOKEN,
+                botToken: process.env.TELEGRAM_BOT_TOKEN ? '***CONFIGURED***' : '',
+                webhookUrl: process.env.TELEGRAM_WEBHOOK_URL || ''
+            },
+            // Email Settings
+            emailSettings: {
+                provider: 'smtp',
+                fromAddress: process.env.EMAIL_FROM || 'noreply@fitarchitect.com',
+                fromName: 'FitArchitect',
+                smtpHost: process.env.SMTP_HOST || '',
+                smtpPort: parseInt(process.env.SMTP_PORT || '587'),
+                smtpUser: process.env.SMTP_USER ? '***CONFIGURED***' : '',
+                smtpPass: process.env.SMTP_PASS ? '***CONFIGURED***' : ''
+            },
+            // Security Settings
+            security: {
+                passwordMinLength: 8,
+                requireStrongPassword: true,
+                maxLoginAttempts: 5,
+                lockoutDuration: 30 * 60 * 1000, // 30 minutes in milliseconds
+                jwtExpiration: '7d',
+                twoFactorRequired: false,
+                allowedOrigins: [process.env.FRONTEND_URL || 'http://localhost:5173'],
+                rateLimitRequests: 100,
+                rateLimitWindow: 15 * 60 * 1000 // 15 minutes in milliseconds
+            },
+            // Notification Settings
+            notifications: {
+                systemEmails: true,
+                marketingEmails: false,
+                weeklyDigest: true,
+                adminNotifications: [process.env.ADMIN_EMAIL || 'admin@fitarchitect.com'],
+                userWelcomeEmail: true,
+                subscriptionEmails: true
+            }
+        };
+        res.json(settings);
+    }
+    catch (error) {
+        logger_1.logger.error('Error fetching admin settings:', error);
+        res.status(500).json({ error: 'Failed to fetch settings' });
+    }
+});
+app.put('/api/admin/settings', auth_1.authenticate, auth_1.requireAdmin, async (req, res) => {
+    try {
+        const { settings } = req.body;
+        // In production, this would update settings in database
+        logger_1.logger.info('Admin updated application settings', {
+            userId: req.user.id,
+            updatedSettings: Object.keys(settings)
+        });
+        res.json({
+            message: 'Settings updated successfully',
+            settings
+        });
+    }
+    catch (error) {
+        logger_1.logger.error('Error updating settings:', error);
+        res.status(500).json({ error: 'Failed to update settings' });
+    }
+});
+// Audit Logs
+app.get('/api/admin/audit-logs', auth_1.authenticate, auth_1.requireAdmin, async (req, res) => {
+    try {
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 50;
+        const action = req.query.action;
+        const userId = req.query.userId;
+        // For now, return sample audit logs
+        // In production, this would query an audit_logs table
+        const auditLogs = Array.from({ length: limit }, (_, i) => ({
+            id: `log_${Date.now() + i}`,
+            adminId: req.user.id,
+            action: action || ['login', 'create_exercise', 'approve_gif', 'update_user', 'delete_workout'][i % 5],
+            resourceType: ['auth', 'exercise', 'gif', 'user', 'workout'][i % 5],
+            resourceId: `resource_${i + 1}`,
+            changes: { example: 'change data' },
+            ipAddress: '127.0.0.1',
+            userAgent: 'Admin Dashboard',
+            createdAt: new Date(Date.now() - (i * 60000)).toISOString()
+        }));
+        res.json({
+            logs: auditLogs,
+            total: 500, // mock total
+            page,
+            limit,
+            totalPages: Math.ceil(500 / limit)
+        });
+    }
+    catch (error) {
+        logger_1.logger.error('Error fetching audit logs:', error);
+        res.status(500).json({ error: 'Failed to fetch audit logs' });
+    }
+});
+// Flagged Content Management
+app.get('/api/admin/flagged-content', auth_1.authenticate, auth_1.requireAdmin, async (req, res) => {
+    try {
+        // Get flagged exercises from the database
+        const flaggedExercises = await prisma_1.prisma.exercise.findMany({
+            where: {
+                approvalStatus: 'flagged'
+            },
+            select: {
+                id: true,
+                name: true,
+                description: true,
+                flaggedReason: true,
+                lastReviewedAt: true,
+                reviewedBy: true,
+                createdAt: true
+            },
+            orderBy: { lastReviewedAt: 'desc' }
+        });
+        // Mock other flagged content types
+        const flaggedContent = {
+            exercises: flaggedExercises,
+            userReports: [
+                {
+                    id: 'report_1',
+                    type: 'inappropriate_workout',
+                    resourceId: 'workout_123',
+                    reportedBy: 'user_456',
+                    reason: 'Inappropriate exercise descriptions',
+                    status: 'pending',
+                    createdAt: new Date().toISOString()
+                }
+            ],
+            comments: [], // placeholder for future comment system
+            workouts: [] // placeholder for flagged workouts
+        };
+        res.json({ flaggedContent });
+    }
+    catch (error) {
+        logger_1.logger.error('Error fetching flagged content:', error);
+        res.status(500).json({ error: 'Failed to fetch flagged content' });
+    }
+});
+app.put('/api/admin/flagged-content/:type/:id', auth_1.authenticate, auth_1.requireAdmin, validation_1.flaggedContentActionValidation, validation_1.handleValidationErrors, async (req, res) => {
+    try {
+        const { type, id } = req.params;
+        const { action, reason } = req.body; // approve, reject, or ban
+        if (type === 'exercise') {
+            await prisma_1.prisma.exercise.update({
+                where: { id },
+                data: {
+                    approvalStatus: action === 'approve' ? 'approved' : action === 'reject' ? 'pending' : 'hidden',
+                    reviewedBy: req.user.email,
+                    lastReviewedAt: new Date(),
+                    flaggedReason: action === 'reject' ? reason : null
+                }
+            });
+        }
+        logger_1.logger.info('Admin handled flagged content', {
+            userId: req.user.id,
+            type,
+            resourceId: id,
+            action,
+            reason
+        });
+        res.json({ message: `${type} ${action}d successfully` });
+    }
+    catch (error) {
+        logger_1.logger.error('Error handling flagged content:', error);
+        res.status(500).json({ error: 'Failed to handle flagged content' });
+    }
+});
+// Error Monitoring
+app.get('/api/admin/errors', auth_1.authenticate, auth_1.requireAdmin, async (req, res) => {
+    try {
+        // Mock error monitoring data - in production this would come from error tracking service
+        const errors = [
+            {
+                id: 'error_1',
+                message: 'Database connection timeout',
+                type: 'DatabaseError',
+                count: 15,
+                lastOccurrence: new Date().toISOString(),
+                stack: 'Error: connect ETIMEDOUT...',
+                affectedUsers: 5,
+                resolved: false
+            },
+            {
+                id: 'error_2',
+                message: 'OpenAI API rate limit exceeded',
+                type: 'APIError',
+                count: 8,
+                lastOccurrence: new Date(Date.now() - 3600000).toISOString(),
+                stack: 'RateLimitError: Too many requests...',
+                affectedUsers: 3,
+                resolved: true
+            },
+            {
+                id: 'error_3',
+                message: 'Invalid exercise GIF format',
+                type: 'ValidationError',
+                count: 3,
+                lastOccurrence: new Date(Date.now() - 7200000).toISOString(),
+                stack: 'ValidationError: File must be GIF format...',
+                affectedUsers: 1,
+                resolved: false
+            }
+        ];
+        const stats = {
+            totalErrors: errors.reduce((sum, e) => sum + e.count, 0),
+            unresolvedErrors: errors.filter(e => !e.resolved).length,
+            affectedUsers: errors.reduce((sum, e) => sum + e.affectedUsers, 0),
+            errorRate: '2.3%' // mock error rate
+        };
+        res.json({ errors, stats });
+    }
+    catch (error) {
+        logger_1.logger.error('Error fetching error monitoring data:', error);
+        res.status(500).json({ error: 'Failed to fetch error data' });
+    }
+});
+// Create Error Report from Frontend
+app.post('/api/admin/errors', auth_1.authenticate, auth_1.requireAdmin, async (req, res) => {
+    try {
+        const { message, stack, errorType, severity, endpoint, userAgent, requestBody } = req.body;
+        // Create error log entry in database
+        const errorLog = await prisma_1.prisma.errorLog.create({
+            data: {
+                message,
+                stack,
+                errorType,
+                severity: severity || 'medium',
+                userId: req.user.id,
+                endpoint,
+                userAgent,
+                requestBody,
+                method: 'FRONTEND_ERROR',
+                resolved: false,
+                count: 1,
+                lastOccurrence: new Date()
+            }
+        });
+        logger_1.logger.error('Frontend error reported', {
+            errorId: errorLog.id,
+            userId: req.user.id,
+            message,
+            errorType
+        });
+        res.status(201).json({
+            success: true,
+            errorId: errorLog.id,
+            message: 'Error reported successfully'
+        });
+    }
+    catch (error) {
+        logger_1.logger.error('Failed to create error report:', error);
+        res.status(500).json({ error: 'Failed to report error' });
+    }
+});
+// Users Management Endpoint
+app.get('/api/admin/users', auth_1.authenticate, auth_1.requireAdmin, async (req, res) => {
+    try {
+        const users = await prisma_1.prisma.userProfile.findMany({
+            select: {
+                id: true,
+                email: true,
+                name: true,
+                active: true,
+                isAdmin: true,
+                tier: true,
+                subscriptionStatus: true,
+                createdAt: true,
+                updatedAt: true
+            },
+            orderBy: { createdAt: 'desc' }
+        });
+        res.json({ users });
+    }
+    catch (error) {
+        logger_1.logger.error('Error fetching users:', error);
+        res.status(500).json({ error: 'Failed to fetch users' });
+    }
+});
+// API Health Check Endpoint
+app.get('/api/admin/api-status', auth_1.authenticate, auth_1.requireAdmin, async (req, res) => {
+    const apiStatus = {
+        exerciseDb: 'broken',
+        wger: 'broken',
+        timestamp: new Date().toISOString()
+    };
+    // Test ExerciseDB API
+    try {
+        const exerciseDbKey = process.env.VITE_EXERCISEDB_API_KEY;
+        if (exerciseDbKey) {
+            const testResponse = await fetch('https://exercisedb.p.rapidapi.com/exercises/bodyPart/chest?limit=1', {
+                headers: {
+                    'X-RapidAPI-Key': exerciseDbKey,
+                    'X-RapidAPI-Host': 'exercisedb.p.rapidapi.com'
+                }
+            });
+            if (testResponse.status === 200) {
+                apiStatus.exerciseDb = 'working';
+            }
+            else if (testResponse.status === 403) {
+                apiStatus.exerciseDb = 'quota_exceeded';
+            }
+        }
+        else {
+            apiStatus.exerciseDb = 'no_key';
+        }
+    }
+    catch (error) {
+        logger_1.logger.error('ExerciseDB health check failed:', error);
+    }
+    // Test WGER API
+    try {
+        const wgerResponse = await fetch('https://wger.de/api/v2/exercise/?limit=1', {
+            headers: {
+                'Accept': 'application/json'
+            }
+        });
+        if (wgerResponse.status === 200) {
+            apiStatus.wger = 'working';
+        }
+    }
+    catch (error) {
+        logger_1.logger.error('WGER health check failed:', error);
+    }
+    res.json(apiStatus);
+});
+// ============================================================================
+// PHASE 2: EXERCISE REGISTRY GIF INTEGRATION
+// ============================================================================
+// GIF Upload Endpoint
+app.post('/api/admin/exercises/upload-gif', auth_1.authenticate, auth_1.requireAdmin, uploadGifs.single('gif'), async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ error: 'No GIF file uploaded' });
+        }
+        const category = req.body.category || 'general';
+        const exerciseName = req.body.exerciseName || 'unnamed';
+        // Generate filename from exercise name
+        const filename = exerciseName.toLowerCase()
+            .replace(/[^a-z0-9]/g, '-')
+            .replace(/-+/g, '-')
+            .replace(/^-|-$/g, '') + '.gif';
+        // Rename the uploaded file to match exercise name
+        const oldPath = req.file.path;
+        const newPath = path_1.default.join(path_1.default.dirname(oldPath), filename);
+        // Rename the file
+        fs_1.default.renameSync(oldPath, newPath);
+        const gifPath = `/exercise-gifs/${category}/${filename}`;
+        logger_1.logger.info('GIF uploaded and renamed successfully', {
+            userId: req.user.id,
+            originalFilename: req.file.filename,
+            newFilename: filename,
+            exerciseName,
+            category,
+            path: gifPath
+        });
+        res.json({
+            success: true,
+            path: gifPath,
+            filename: filename,
+            message: `GIF saved as: ${gifPath}`
+        });
+    }
+    catch (error) {
+        logger_1.logger.error('Error uploading GIF:', error);
+        res.status(500).json({ error: 'Failed to upload GIF' });
+    }
+});
+// Exercise Creation with GIF Assignment
+app.post('/api/admin/exercises', auth_1.authenticate, auth_1.requireAdmin, validation_1.exerciseCreateValidation, validation_1.handleValidationErrors, async (req, res) => {
+    try {
+        const { name, description, category, muscleGroups, equipment, difficulty, instructions, tips, gifPath, isCustom = true } = req.body;
+        // Validate required fields
+        if (!name || !description) {
+            return res.status(400).json({ error: 'Name and description are required' });
+        }
+        // Check if exercise already exists
+        const existingExercise = await prisma_1.prisma.exercise.findFirst({
+            where: { name: { equals: name, mode: 'insensitive' } }
+        });
+        if (existingExercise) {
+            return res.status(409).json({ error: 'Exercise with this name already exists' });
+        }
+        // Create exercise with approval workflow
+        const exercise = await prisma_1.prisma.exercise.create({
+            data: {
+                name,
+                description,
+                category: category || 'strength',
+                muscleGroups: muscleGroups || [],
+                equipment: equipment || ['bodyweight'],
+                difficulty: difficulty || 'intermediate',
+                instructions: instructions || [description],
+                tips: tips || [],
+                gifPath: gifPath || null,
+                isCustom,
+                createdBy: req.user.id,
+                approvalStatus: 'approved', // Admin-created exercises are auto-approved
+                lastReviewedAt: new Date(),
+                reviewedBy: req.user.email,
+                isActive: true
+            }
+        });
+        logger_1.logger.info('Admin created new exercise', {
+            userId: req.user.id,
+            exerciseId: exercise.id,
+            exerciseName: name,
+            hasGif: !!gifPath
+        });
+        res.status(201).json({
+            exercise,
+            message: 'Exercise created successfully'
+        });
+    }
+    catch (error) {
+        logger_1.logger.error('Error creating exercise:', error);
+        res.status(500).json({ error: 'Failed to create exercise' });
+    }
+});
+// Update Exercise (including GIF assignment)
+app.put('/api/admin/exercises/:id', auth_1.authenticate, auth_1.requireAdmin, validation_1.idValidation, validation_1.exerciseUpdateValidation, validation_1.handleValidationErrors, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const updateData = req.body;
+        const exercise = await prisma_1.prisma.exercise.update({
+            where: { id },
+            data: {
+                ...updateData,
+                lastReviewedAt: new Date(),
+                reviewedBy: req.user.email,
+                updatedAt: new Date()
+            }
+        });
+        logger_1.logger.info('Admin updated exercise', {
+            userId: req.user.id,
+            exerciseId: id,
+            changes: Object.keys(updateData)
+        });
+        res.json({ exercise });
+    }
+    catch (error) {
+        logger_1.logger.error('Error updating exercise:', error);
+        res.status(500).json({ error: 'Failed to update exercise' });
+    }
+});
+// Delete Exercise
+app.delete('/api/admin/exercises/:id', auth_1.authenticate, auth_1.requireAdmin, validation_1.idValidation, validation_1.handleValidationErrors, async (req, res) => {
+    try {
+        const { id } = req.params;
+        // Soft delete by setting isActive to false
+        await prisma_1.prisma.exercise.update({
+            where: { id },
+            data: {
+                isActive: false,
+                lastReviewedAt: new Date(),
+                reviewedBy: req.user.email
+            }
+        });
+        logger_1.logger.info('Admin deleted exercise', {
+            userId: req.user.id,
+            exerciseId: id
+        });
+        res.json({ message: 'Exercise deleted successfully' });
+    }
+    catch (error) {
+        logger_1.logger.error('Error deleting exercise:', error);
+        res.status(500).json({ error: 'Failed to delete exercise' });
+    }
+});
+// ============================================================================
+// PHASE 3: WORKOUT BUILDER SYSTEM
+// ============================================================================
+// Workout Management CRUD
+app.get('/api/admin/workouts', auth_1.authenticate, auth_1.requireAdmin, async (req, res) => {
+    try {
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 20;
+        const category = req.query.category;
+        const difficulty = req.query.difficulty;
+        const search = req.query.search;
+        const offset = (page - 1) * limit;
+        const where = {};
+        if (category)
+            where.category = category;
+        if (difficulty)
+            where.difficulty = difficulty;
+        if (search) {
+            where.OR = [
+                { name: { contains: search, mode: 'insensitive' } },
+                { description: { contains: search, mode: 'insensitive' } }
+            ];
+        }
+        const [workouts, total] = await Promise.all([
+            prisma_1.prisma.workoutPlan.findMany({
+                where,
+                skip: offset,
+                take: limit,
+                include: {
+                    user: {
+                        select: { email: true, name: true }
+                    }
+                },
+                orderBy: { updatedAt: 'desc' }
+            }),
+            prisma_1.prisma.workoutPlan.count({ where })
+        ]);
+        res.json({
+            workouts,
+            total,
+            page,
+            limit,
+            totalPages: Math.ceil(total / limit)
+        });
+    }
+    catch (error) {
+        logger_1.logger.error('Error fetching workouts:', error);
+        res.status(500).json({ error: 'Failed to fetch workouts' });
+    }
+});
+app.post('/api/admin/workouts', auth_1.authenticate, auth_1.requireAdmin, validation_1.workoutCreateValidation, validation_1.handleValidationErrors, async (req, res) => {
+    try {
+        const { name, description, category, difficulty, duration, weeks, targetMuscleGroups, equipment, exercises } = req.body;
+        // Validate workout structure
+        if (!name || !description) {
+            return res.status(400).json({ error: 'Name and description are required' });
+        }
+        if (!weeks || typeof weeks !== 'object') {
+            return res.status(400).json({ error: 'Workout weeks structure is required' });
+        }
+        // Validate exercises in workout
+        if (exercises && exercises.length > 0) {
+            const exerciseIds = exercises.map((e) => e.exerciseId).filter(Boolean);
+            const validExercises = await prisma_1.prisma.exercise.findMany({
+                where: {
+                    id: { in: exerciseIds },
+                    isActive: true,
+                    approvalStatus: 'approved'
+                }
+            });
+            if (validExercises.length !== exerciseIds.length) {
+                return res.status(400).json({ error: 'Some exercises are invalid or not approved' });
+            }
+        }
+        const workout = await prisma_1.prisma.workoutPlan.create({
+            data: {
+                name,
+                description,
+                duration: duration || 4,
+                weeks,
+                targetMuscleGroups: targetMuscleGroups || [],
+                difficulty: difficulty || 'intermediate',
+                isDefault: true, // Admin-created workouts are templates
+                estimatedDuration: duration || 60,
+                equipment: equipment || [],
+                source: 'admin',
+                userId: req.user.id,
+                // Store additional workout metadata
+                progressData: {
+                    totalWorkouts: 0,
+                    completedCount: 0,
+                    exerciseCount: (exercises === null || exercises === void 0 ? void 0 : exercises.length) || 0
+                }
+            }
+        });
+        logger_1.logger.info('Admin created workout', {
+            userId: req.user.id,
+            workoutId: workout.id,
+            workoutName: name,
+            exerciseCount: (exercises === null || exercises === void 0 ? void 0 : exercises.length) || 0
+        });
+        res.status(201).json({ workout });
+    }
+    catch (error) {
+        logger_1.logger.error('Error creating workout:', error);
+        res.status(500).json({ error: 'Failed to create workout' });
+    }
+});
+app.put('/api/admin/workouts/:id', auth_1.authenticate, auth_1.requireAdmin, validation_1.idValidation, validation_1.workoutUpdateValidation, validation_1.handleValidationErrors, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const updateData = req.body;
+        // Validate exercises if provided
+        if (updateData.exercises && updateData.exercises.length > 0) {
+            const exerciseIds = updateData.exercises.map((e) => e.exerciseId).filter(Boolean);
+            const validExercises = await prisma_1.prisma.exercise.findMany({
+                where: {
+                    id: { in: exerciseIds },
+                    isActive: true,
+                    approvalStatus: 'approved'
+                }
+            });
+            if (validExercises.length !== exerciseIds.length) {
+                return res.status(400).json({ error: 'Some exercises are invalid or not approved' });
+            }
+        }
+        const workout = await prisma_1.prisma.workoutPlan.update({
+            where: { id },
+            data: {
+                ...updateData,
+                updatedAt: new Date()
+            }
+        });
+        logger_1.logger.info('Admin updated workout', {
+            userId: req.user.id,
+            workoutId: id,
+            changes: Object.keys(updateData)
+        });
+        res.json({ workout });
+    }
+    catch (error) {
+        logger_1.logger.error('Error updating workout:', error);
+        res.status(500).json({ error: 'Failed to update workout' });
+    }
+});
+app.delete('/api/admin/workouts/:id', auth_1.authenticate, auth_1.requireAdmin, async (req, res) => {
+    try {
+        const { id } = req.params;
+        await prisma_1.prisma.workoutPlan.delete({
+            where: { id }
+        });
+        logger_1.logger.info('Admin deleted workout', {
+            userId: req.user.id,
+            workoutId: id
+        });
+        res.json({ message: 'Workout deleted successfully' });
+    }
+    catch (error) {
+        logger_1.logger.error('Error deleting workout:', error);
+        res.status(500).json({ error: 'Failed to delete workout' });
+    }
+});
+// Exercise Selection for Workout Builder
+app.get('/api/admin/exercises-for-builder', auth_1.authenticate, auth_1.requireAdmin, async (req, res) => {
+    try {
+        const category = req.query.category;
+        const difficulty = req.query.difficulty;
+        const equipment = req.query.equipment;
+        const muscleGroup = req.query.muscleGroup;
+        const search = req.query.search;
+        const where = {
+            isActive: true,
+            approvalStatus: 'approved' // Only approved exercises for workout building
+        };
+        if (category)
+            where.category = category;
+        if (difficulty)
+            where.difficulty = difficulty;
+        if (equipment)
+            where.equipment = { has: equipment };
+        if (muscleGroup)
+            where.muscleGroups = { has: muscleGroup };
+        if (search) {
+            where.OR = [
+                { name: { contains: search, mode: 'insensitive' } },
+                { description: { contains: search, mode: 'insensitive' } }
+            ];
+        }
+        const exercises = await prisma_1.prisma.exercise.findMany({
+            where,
+            select: {
+                id: true,
+                name: true,
+                description: true,
+                category: true,
+                muscleGroups: true,
+                equipment: true,
+                difficulty: true,
+                instructions: true,
+                gifPath: true,
+                approvalStatus: true
+            },
+            orderBy: { name: 'asc' }
+        });
+        // Group exercises by category for easier building
+        const exercisesByCategory = exercises.reduce((acc, exercise) => {
+            const cat = exercise.category || 'other';
+            if (!acc[cat])
+                acc[cat] = [];
+            acc[cat].push(exercise);
+            return acc;
+        }, {});
+        res.json({
+            exercises,
+            exercisesByCategory,
+            total: exercises.length
+        });
+    }
+    catch (error) {
+        logger_1.logger.error('Error fetching exercises for workout builder:', error);
+        res.status(500).json({ error: 'Failed to fetch exercises for workout builder' });
+    }
+});
+// Workout Validation
+app.post('/api/admin/workouts/validate', auth_1.authenticate, auth_1.requireAdmin, async (req, res) => {
+    try {
+        const { workout } = req.body;
+        const validationErrors = [];
+        // Basic validation
+        if (!workout.name)
+            validationErrors.push('Workout name is required');
+        if (!workout.description)
+            validationErrors.push('Workout description is required');
+        // Week structure validation
+        if (!workout.weeks || typeof workout.weeks !== 'object') {
+            validationErrors.push('Workout weeks structure is required');
+        }
+        else {
+            Object.entries(workout.weeks).forEach(([weekKey, weekData]) => {
+                if (!weekData.days || typeof weekData.days !== 'object') {
+                    validationErrors.push(`Week ${weekKey} must have days structure`);
+                }
+                else {
+                    Object.entries(weekData.days).forEach(([dayKey, dayData]) => {
+                        if (!dayData.exercises || !Array.isArray(dayData.exercises)) {
+                            validationErrors.push(`Week ${weekKey}, Day ${dayKey} must have exercises array`);
+                        }
+                    });
+                }
+            });
+        }
+        // Exercise validation
+        const allExerciseIds = [];
+        if (workout.weeks) {
+            Object.values(workout.weeks).forEach((week) => {
+                if (week.days) {
+                    Object.values(week.days).forEach((day) => {
+                        if (day.exercises) {
+                            day.exercises.forEach((exercise) => {
+                                if (exercise.exerciseId) {
+                                    allExerciseIds.push(exercise.exerciseId);
+                                }
+                            });
+                        }
+                    });
+                }
+            });
+        }
+        if (allExerciseIds.length > 0) {
+            const validExercises = await prisma_1.prisma.exercise.findMany({
+                where: {
+                    id: { in: allExerciseIds },
+                    isActive: true,
+                    approvalStatus: 'approved'
+                }
+            });
+            const invalidExercises = allExerciseIds.filter(id => !validExercises.some(e => e.id === id));
+            if (invalidExercises.length > 0) {
+                validationErrors.push(`Invalid or unapproved exercises: ${invalidExercises.join(', ')}`);
+            }
+        }
+        const isValid = validationErrors.length === 0;
+        res.json({
+            isValid,
+            errors: validationErrors,
+            exerciseCount: allExerciseIds.length,
+            warnings: allExerciseIds.length === 0 ? ['Workout has no exercises'] : []
+        });
+    }
+    catch (error) {
+        logger_1.logger.error('Error validating workout:', error);
+        res.status(500).json({ error: 'Failed to validate workout' });
     }
 });
 // Serve static files in production

@@ -46,6 +46,7 @@ interface UserData {
 export interface AuthenticatedRequest extends Request {
   user?: UserData;
   admin?: UserData;
+  userProfile?: UserData; // Added for validation middleware compatibility
 }
 
 // Helper function to normalize equipment availability data

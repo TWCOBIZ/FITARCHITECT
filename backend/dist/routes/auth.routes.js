@@ -193,7 +193,11 @@ const guestRegistrationHandler = (0, errorHandler_1.asyncHandler)(async (req, re
             tier: 'guest',
             active: true,
             parqCompleted: false,
-            isAdmin: false
+            isAdmin: false,
+            gender: 'not_specified',
+            activityLevel: 'moderate',
+            fitnessGoals: [],
+            equipmentAvailability: []
         }
     });
     // Generate token

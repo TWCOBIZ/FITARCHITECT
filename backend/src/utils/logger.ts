@@ -15,6 +15,60 @@ interface LogContext {
   operation?: string;
   component?: string;
   metadata?: Record<string, any>;
+  // Additional properties used throughout the codebase
+  name?: string;
+  adminId?: string;
+  email?: string;
+  message?: string;
+  planType?: string;
+  subscriptionId?: string;
+  workoutId?: string;
+  exerciseId?: string;
+  templateId?: string;
+  updatedSettings?: any;
+  type?: string;
+  errorId?: string;
+  originalFilename?: string;
+  profilePicture?: string;
+  responses?: any;
+  responseId?: string;
+  planId?: string;
+  error?: string;
+  title?: string;
+  updatedFields?: any;
+  fitnessGoals?: any;
+  // Additional properties from recent errors
+  stack?: string;
+  updates?: any;
+  status?: string;
+  logId?: string;
+  workoutsCount?: number;
+  templateName?: string;
+  severity?: string;
+  resourceId?: string;
+  errorType?: string;
+  newFilename?: string;
+  exerciseName?: string;
+  changes?: any;
+  workoutName?: string;
+  activityLevel?: string;
+  score?: number;
+  // Final missing properties
+  url?: string;
+  userAgent?: string;
+  targetUsers?: any;
+  action?: string;
+  category?: string;
+  hasGif?: boolean;
+  exerciseCount?: number;
+  equipmentAvailability?: any;
+  reasons?: any;
+  // Last missing properties  
+  method?: string;
+  ip?: string;
+  reason?: string;
+  path?: string;
+  timestamp?: string;
 }
 
 interface PerformanceMetrics {

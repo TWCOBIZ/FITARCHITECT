@@ -165,7 +165,7 @@ router.post('/profile/avatar',
 
     await prisma.userProfile.update({
       where: { id: userId },
-      data: { profilePicture: profilePictureUrl }
+      data: { avatar: profilePictureUrl }
     });
 
     logger.info('Profile picture updated', { userId });
@@ -274,8 +274,9 @@ router.post('/parq-response',
     const parqResponse = await prisma.parqResponse.create({
       data: {
         userId,
-        responses,
-        completedAt: completedAt ? new Date(completedAt) : new Date()
+        answers: responses,
+        flaggedQuestions: [],
+        notes: []
       }
     });
 
@@ -306,7 +307,7 @@ router.get('/parq-response',
 
     const parqResponse = await prisma.parqResponse.findFirst({
       where: { userId },
-      orderBy: { completedAt: 'desc' }
+      orderBy: { createdAt: 'desc' }
     });
 
     res.json({
