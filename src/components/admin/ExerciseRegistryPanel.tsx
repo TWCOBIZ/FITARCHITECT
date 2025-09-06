@@ -71,6 +71,9 @@ const ExerciseRegistryPanel: React.FC = () => {
     message: string
     onConfirm: () => void
   } | null>(null)
+  
+  const [selectedGifFile, setSelectedGifFile] = useState<File | null>(null)
+  const [gifPreviewUrl, setGifPreviewUrl] = useState<string | null>(null)
 
   useEffect(() => {
     loadRegistryData().catch(error => {
@@ -170,7 +173,7 @@ const ExerciseRegistryPanel: React.FC = () => {
     }
   }
 
-  const handleAddExercise = () => {
+  const handleAddExercise = async () => {
     // Validate required fields
     if (!newExercise.name || !newExercise.description) {
       toast.error('Name and description are required')
@@ -178,30 +181,77 @@ const ExerciseRegistryPanel: React.FC = () => {
     }
 
     try {
-      const standardizedName = toStandardizedKey(normalizeExerciseName(newExercise.name))
+      let finalGifPath = newExercise.gifPath || null
       
-      // Check if exercise already exists
-      if (EXERCISE_REGISTRY[standardizedName]) {
-        toast.error('Exercise with this name already exists in registry')
-        return
+      // If a file is selected, upload it first
+      if (selectedGifFile) {
+        const formData = new FormData()
+        formData.append('gif', selectedGifFile)
+        formData.append('category', newExercise.category || 'general')
+        formData.append('exerciseName', newExercise.name) // Send exercise name for filename
+        
+        const uploadResponse = await fetch('/api/admin/exercises/upload-gif', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+          },
+          body: formData
+        })
+        
+        if (uploadResponse.ok) {
+          const uploadResult = await uploadResponse.json()
+          finalGifPath = uploadResult.path
+          // Show upload success
+          toast.info(`📁 GIF uploaded: ${uploadResult.message || uploadResult.path}`, { duration: 3000 })
+        } else {
+          // If upload fails, continue with manual path
+          console.warn('GIF upload failed, using manual path')
+          toast.warning('GIF upload failed, using manual path entry')
+        }
       }
-
+      
       // Create complete exercise definition
-      const exerciseDefinition: ExerciseDefinition = {
-        ...newExercise,
-        standardizedName,
+      const exerciseData = {
+        name: newExercise.name,
+        description: newExercise.description,
+        category: newExercise.category || 'strength',
         muscleGroups: newExercise.muscleGroups || [],
         equipment: newExercise.equipment || ['bodyweight'],
-        instructions: newExercise.instructions?.filter(i => i.trim()) || [],
-        source: 'manual'
-      } as ExerciseDefinition
+        difficulty: newExercise.difficulty || 'intermediate',
+        instructions: newExercise.instructions?.filter(i => i.trim()) || [newExercise.description],
+        tips: [],
+        gifPath: finalGifPath,
+        isCustom: true
+      }
 
-      // Note: In a real implementation, this would save to the backend
-      // For now, we just show what would be created
-      console.log('Would create exercise:', exerciseDefinition)
+      // Make API call to create exercise
+      const response = await fetch('/api/admin/exercises', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+        },
+        body: JSON.stringify(exerciseData)
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to create exercise')
+      }
+
+      const result = await response.json()
       
-      toast.success(`Exercise "${newExercise.name}" would be added to registry`)
-      toast.info('Note: This is a demo. In production, this would save to the database.')
+      // Show detailed success message
+      const successMessage = finalGifPath 
+        ? `✅ Exercise "${newExercise.name}" created!\n📁 GIF saved to: ${finalGifPath}`
+        : `✅ Exercise "${newExercise.name}" created successfully!`
+      
+      toast.success(successMessage, { duration: 5000 })
+      logger.workout.info('Exercise created successfully', { 
+        exerciseId: result.exercise.id,
+        exerciseName: newExercise.name,
+        gifPath: finalGifPath
+      })
       
       // Reset form
       setNewExercise({
@@ -214,11 +264,16 @@ const ExerciseRegistryPanel: React.FC = () => {
         instructions: [''],
         source: 'manual'
       })
+      setSelectedGifFile(null)
+      setGifPreviewUrl(null)
       setShowAddExercise(false)
+      
+      // Refresh registry data to show new exercise
+      await loadRegistryData()
       
     } catch (error) {
       logger.workout.error('Failed to add exercise', error)
-      toast.error('Failed to add exercise')
+      toast.error(error instanceof Error ? error.message : 'Failed to add exercise')
     }
   }
 
@@ -556,19 +611,65 @@ const ExerciseRegistryPanel: React.FC = () => {
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">GIF Path (optional)</label>
-                <input
-                  type="text"
-                  value={newExercise.gifPath || ''}
-                  onChange={(e) => setNewExercise({ ...newExercise, gifPath: e.target.value })}
-                  placeholder="/exercise-gifs/category/exercise-name.gif"
-                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
+                <label className="block text-sm font-medium text-gray-300 mb-2">GIF Upload (optional)</label>
+                <div className="space-y-2">
+                  <input
+                    type="file"
+                    accept="image/gif"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0]
+                      if (file) {
+                        setSelectedGifFile(file)
+                        const url = URL.createObjectURL(file)
+                        setGifPreviewUrl(url)
+                        // Generate filename from exercise name or use original
+                        const category = newExercise.category || 'general'
+                        const exerciseName = newExercise.name || 'unnamed'
+                        const filename = exerciseName.toLowerCase()
+                          .replace(/[^a-z0-9]/g, '-')
+                          .replace(/-+/g, '-')
+                          .replace(/^-|-$/g, '') + '.gif'
+                        const fullPath = `/exercise-gifs/${category}/${filename}`
+                        setNewExercise({ 
+                          ...newExercise, 
+                          gifPath: fullPath
+                        })
+                      }
+                    }}
+                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white file:mr-4 file:py-1 file:px-2 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-700"
+                  />
+                  
+                  {/* Manual path input as fallback */}
+                  <input
+                    type="text"
+                    value={newExercise.gifPath || ''}
+                    onChange={(e) => setNewExercise({ ...newExercise, gifPath: e.target.value })}
+                    placeholder="Or enter path: /exercise-gifs/category/name.gif"
+                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  
+                  {/* GIF Preview and Path Info */}
+                  {gifPreviewUrl && (
+                    <div className="mt-2 space-y-2">
+                      <div className="bg-green-900/20 border border-green-700 rounded p-3">
+                        <p className="text-sm text-green-400 font-medium mb-1">✅ GIF Ready for Upload</p>
+                        <p className="text-xs text-gray-400">
+                          <strong>Will be saved as:</strong> {newExercise.gifPath}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-400 mb-1">Preview:</p>
+                        <img 
+                          src={gifPreviewUrl} 
+                          alt="GIF preview" 
+                          className="max-w-xs max-h-40 rounded border border-gray-600"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
               
-              <div className="text-sm text-gray-400">
-                <strong>Note:</strong> This is a demo interface. In production, exercises would be saved to the database and require server-side validation.
-              </div>
             </div>
             
             <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-gray-700">

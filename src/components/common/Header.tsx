@@ -26,8 +26,8 @@ const Header: React.FC = () => {
           {/* Logo */}
           <Link to="/" className="flex items-center text-lg sm:text-xl lg:text-2xl font-bold gap-2 hover:text-brand-primary transition-colors">
             <img src={logo} alt="Logo" className="h-6 w-6 md:h-8 md:w-8" />
-            <span className="hidden sm:block">FITARCHITECT</span>
-            <span className="sm:hidden">FA</span>
+            <span className="hidden sm:block">TWCOFIT</span>
+            <span className="sm:hidden">TW</span>
           </Link>
 
           {/* Desktop Navigation */}

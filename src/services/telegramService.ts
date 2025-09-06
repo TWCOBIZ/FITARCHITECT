@@ -163,7 +163,7 @@ class TelegramService {
    * Test connection by sending a test message
    */
   public async testConnection(): Promise<{ success: boolean; error?: TelegramError }> {
-    return this.sendNotification('🎉 Your Telegram is successfully connected to FitArchitect!')
+    return this.sendNotification('🎉 Your Telegram is successfully connected to TWCOFIT!')
   }
 
   /**

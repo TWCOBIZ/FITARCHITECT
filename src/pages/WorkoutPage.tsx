@@ -925,7 +925,7 @@ const WorkoutPage: React.FC = () => {
               Working with advanced algorithms to create your perfect workout
             </p>
             <p className="text-white/70 text-xs">
-              ✨ Powered by FitArchitect's proprietary fitness intelligence engine
+              ✨ Powered by TWCOFIT's proprietary fitness intelligence engine
             </p>
           </div>
         </div>

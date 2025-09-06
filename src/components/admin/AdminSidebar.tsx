@@ -5,18 +5,10 @@ const panels = [
   { path: '', label: 'Overview', icon: '📊' },
   { path: 'exercise-registry', label: 'Exercise Registry', icon: '📚' },
   { path: 'users', label: 'Users', icon: '👥' },
-  { path: 'subscriptions', label: 'Subscriptions', icon: '💳' },
-  { path: 'analytics', label: 'Analytics', icon: '📈' },
-  { path: 'parq', label: 'PAR-Q', icon: '📋' },
-  { path: 'content', label: 'Content', icon: '📝' },
   { path: 'exercises', label: 'Exercises', icon: '💪' },
   { path: 'workout-builder', label: 'Workout Builder', icon: '🏗️' },
-  { path: 'workout-templates', label: 'Workout Templates', icon: '📑' },
   { path: 'exercise-media', label: 'Exercise Media', icon: '🎬' },
-  { path: 'notifications', label: 'Notifications', icon: '🔔' },
-  { path: 'system', label: 'System Health', icon: '⚡' },
   { path: 'settings', label: 'Settings', icon: '⚙️' },
-  { path: 'export', label: 'Export', icon: '📤' },
 ];
 
 const AdminSidebar: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {

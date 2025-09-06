@@ -78,7 +78,7 @@ const LandingPage = () => {
       {/* Features Section */}
       <section className="py-20 px-4">
         <div className="max-w-6xl mx-auto">
-          <h2 className="text-4xl font-bold text-center mb-16">Why Choose FitArchitect?</h2>
+          <h2 className="text-4xl font-bold text-center mb-16">Why Choose TWCOFIT?</h2>
           
           <div className="grid md:grid-cols-3 gap-8">
             {features.map((feature, index) => (
@@ -103,7 +103,7 @@ const LandingPage = () => {
         <div className="max-w-4xl mx-auto text-center">
           <h2 className="text-4xl font-bold mb-6">Ready to Start Your Journey?</h2>
           <p className="text-xl text-gray-300 mb-8">
-            Join thousands of users who have transformed their lives with FitArchitect
+            Join thousands of users who have transformed their lives with TWCOFIT
           </p>
           <button
             onClick={() => navigate('/register')}

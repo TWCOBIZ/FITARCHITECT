@@ -85,7 +85,7 @@ export default function SplashScreen() {
             >
               <img 
                 src="/assets/images/logo.png" 
-                alt="Fit Architect Logo" 
+                alt="TWCOFIT Logo" 
                 className="object-contain w-full h-full"
               />
             </motion.div>
@@ -104,7 +104,7 @@ export default function SplashScreen() {
           >
             <img 
               src="/assets/images/background.jpg" 
-              alt="Fit Architect Background" 
+              alt="TWCOFIT Background" 
               className="object-cover w-full h-full"
             />
             {/* Overlay to ensure text is readable */}
@@ -130,7 +130,7 @@ export default function SplashScreen() {
                 ease: "easeOut",
               }}
             >
-              FIT ARCHITECT
+              TWCOFIT
             </motion.h1>
 
             {/* Tagline */}
@@ -140,7 +140,7 @@ export default function SplashScreen() {
               animate={{ opacity: showTagline ? 1 : 0 }}
               transition={{ duration: 0.8 }}
             >
-              DISCIPLINE IS THE BLUEPRINT
+              Transform With Confidence
             </motion.p>
           </div>
         )}

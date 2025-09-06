@@ -59,6 +59,11 @@ model UserProfile {
   workoutLogs               WorkoutLog[]
   workoutPlans              WorkoutPlan[]
   recipes                   Recipe[]
+  
+  // New relations for admin system
+  workoutTemplatesCreated   WorkoutTemplate[] @relation("WorkoutTemplateCreator")
+  reportsCreated            UserReport[] @relation("UserReportsCreated")
+  reportsReviewed           UserReport[] @relation("UserReportsReviewed")
 
   @@map("user_profiles")
 }
@@ -288,4 +293,88 @@ model NotificationQueue {
   errorMessage String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+}
+
+model SystemNotification {
+  id          String   @id @default(cuid())
+  title       String
+  message     String
+  type        String   // "system", "user", "error", "warning", "info"
+  severity    String   // "low", "medium", "high", "critical"
+  targetUsers String[] // Array of user IDs, or ["all"] for all users
+  readBy      String[] @default([]) // Array of user IDs who have read this notification
+  isActive    Boolean  @default(true)
+  expiresAt   DateTime?
+  createdBy   String?  // Admin user ID
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model ErrorLog {
+  id            String   @id @default(cuid())
+  message       String
+  stack         String?
+  errorType     String
+  severity      String   @default("medium") // "low", "medium", "high", "critical"
+  userId        String?  // User who encountered the error (if applicable)
+  endpoint      String?  // API endpoint where error occurred
+  method        String?  // HTTP method
+  statusCode    Int?
+  userAgent     String?
+  ipAddress     String?
+  requestBody   Json?    // Sanitized request body (no sensitive data)
+  resolved      Boolean  @default(false)
+  resolvedBy    String?  // Admin user ID
+  resolvedAt    DateTime?
+  resolvedNotes String?
+  count         Int      @default(1) // Number of times this same error occurred
+  lastOccurrence DateTime @default(now())
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model WorkoutTemplate {
+  id                  String   @id @default(cuid())
+  name                String
+  description         String
+  category            String   // "strength", "cardio", "flexibility", etc.
+  difficulty          String   // "beginner", "intermediate", "advanced"
+  duration            Int      // Duration in weeks
+  estimatedTimePerDay Int?     // Minutes per workout session
+  targetMuscleGroups  String[]
+  equipment           String[]
+  weeks               Json     // Structured workout weeks with exercises
+  tags                String[] @default([])
+  isPublic            Boolean  @default(false) // Public templates available to all users
+  isOfficial          Boolean  @default(false) // Official templates created by admins
+  createdBy           String   // Admin user ID
+  usageCount          Int      @default(0) // How many users have used this template
+  rating              Float?   // Average user rating
+  ratingCount         Int      @default(0)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  
+  // Relation to user who created it
+  creator             UserProfile @relation("WorkoutTemplateCreator", fields: [createdBy], references: [id])
+  
+  @@map("workout_templates")
+}
+
+model UserReport {
+  id           String   @id @default(cuid())
+  reportedBy   String   // User ID who made the report
+  resourceType String   // "user", "workout", "exercise", "comment", etc.
+  resourceId   String   // ID of the reported resource
+  reason       String   // Reason for report
+  description  String?  // Additional details
+  status       String   @default("pending") // "pending", "reviewed", "resolved", "dismissed"
+  reviewedBy   String?  // Admin user ID
+  reviewedAt   DateTime?
+  reviewNotes  String?  // Admin notes
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  // Relations
+  reporter     UserProfile @relation("UserReportsCreated", fields: [reportedBy], references: [id])
+  reviewer     UserProfile? @relation("UserReportsReviewed", fields: [reviewedBy], references: [id])
 }

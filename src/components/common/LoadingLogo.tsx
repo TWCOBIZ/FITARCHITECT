@@ -27,7 +27,7 @@ export const LoadingLogo: React.FC<LoadingLogoProps> = ({ size = 'md', className
     >
       <img
         src="/assets/images/logo.png"
-        alt="FitArchitect Logo"
+        alt="TWCOFIT Logo"
         className="w-full h-full"
       />
     </motion.div>

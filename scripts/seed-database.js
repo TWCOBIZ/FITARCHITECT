@@ -51,9 +51,10 @@ async function createAdminUser() {
       weight: 75,
       age: 30,
       gender: 'other',
-      fitnessGoals: ['general_fitness'],
+      fitnessGoals: ['strength', 'muscle_gain'],
       activityLevel: 'moderate',
       dietaryPreferences: [],
+      equipmentAvailability: ['bodyweight', 'dumbbells'],
       emailNotifications: true,
       telegramEnabled: false,
       parqCompleted: true,
@@ -79,6 +80,10 @@ async function createTestUser() {
       name: 'Test User',
       parqCompleted: true,
       type: 'registered',
+      fitnessGoals: ['strength', 'weight_loss'],
+      activityLevel: 'active',
+      dietaryPreferences: [],
+      equipmentAvailability: ['bodyweight', 'resistance_bands'],
     },
     create: {
       email: testEmail,
@@ -91,9 +96,10 @@ async function createTestUser() {
       weight: 70,
       age: 25,
       gender: 'other',
-      fitnessGoals: ['weight_loss', 'muscle_gain'],
+      fitnessGoals: ['strength', 'weight_loss'],
       activityLevel: 'active',
       dietaryPreferences: [],
+      equipmentAvailability: ['bodyweight', 'resistance_bands'],
       emailNotifications: true,
       telegramEnabled: false,
       parqCompleted: true,
@@ -105,10 +111,49 @@ async function createTestUser() {
   return testUser;
 }
 
-async function createPremiumSubscription(userId) {
-  const premiumPlanId = 'price_premium_monthly';
-  
+async function seedPlans() {
   try {
+    // Create subscription plans if they don't exist (simplified to match schema)
+    const plans = [
+      {
+        id: 'free_plan',
+        name: 'Free',
+        price: 0
+      },
+      {
+        id: 'basic_plan',
+        name: 'Basic',
+        price: 9.99
+      },
+      {
+        id: 'premium_plan',
+        name: 'Premium',
+        price: 19.99
+      }
+    ];
+
+    for (const plan of plans) {
+      await prisma.plan.upsert({
+        where: { id: plan.id },
+        update: {
+          name: plan.name,
+          price: plan.price
+        },
+        create: plan
+      });
+    }
+    
+    console.log('✅ Subscription plans seeded successfully');
+  } catch (error) {
+    console.error('❌ Error seeding plans:', error);
+  }
+}
+
+async function createPremiumSubscription(userId) {
+  try {
+    // Ensure plans exist first
+    await seedPlans();
+    
     const existingSubscription = await prisma.subscription.findFirst({
       where: { userId }
     });
@@ -117,7 +162,7 @@ async function createPremiumSubscription(userId) {
       await prisma.subscription.create({
         data: {
           userId,
-          planId: premiumPlanId,
+          planId: 'premium_plan', // Use the correct plan ID
           plan: 'Premium',
           status: 'active',
           startDate: new Date(),

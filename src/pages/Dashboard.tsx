@@ -123,7 +123,7 @@ const Dashboard: React.FC = () => {
         {/* Empty State for New Users */}
         {user && !isGuest && !user.parqCompleted && (
           <div className="bg-gray-900 border border-gray-800 text-gray-200 px-4 py-6 rounded-lg mb-8 text-center">
-            <h2 className="text-2xl font-bold mb-2">Welcome to FitArchitect!</h2>
+            <h2 className="text-2xl font-bold mb-2">Welcome to TWCOFIT!</h2>
             <p className="mb-2">Get started by completing your PAR-Q, logging your first meal, or starting a workout.</p>
             <div className="flex justify-center gap-4 mt-4">
               <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded" onClick={() => { trackEvent('empty_state_parq_cta'); navigate('/parq') }}>Complete PAR-Q</button>

@@ -15,7 +15,11 @@ const listeners: ((status: BackendStatus) => void)[] = [];
 
 // Create a separate axios instance for health checks to avoid circular dependency
 const healthCheckAxios = axios.create({
-  baseURL: (window as any).__RUNTIME_CONFIG__?.API_URL || import.meta.env.VITE_API_URL || (import.meta.env.PROD ? 'https://fitarchitect-production.up.railway.app' : 'http://localhost:3001'),
+  // In development, use no baseURL to go through Vite proxy
+  // In production, use the configured API URL
+  baseURL: import.meta.env.PROD 
+    ? ((window as any).__RUNTIME_CONFIG__?.API_URL || import.meta.env.VITE_API_URL || 'https://fitarchitect-production.up.railway.app')
+    : undefined, // No baseURL in dev = uses current origin, goes through Vite proxy
   timeout: 5000,
   headers: {
     'Content-Type': 'application/json',
@@ -30,7 +34,7 @@ export const backendHealthCheck = {
       
       console.log('Health endpoint response:', response.data);
       
-      const isHealthy = response.data.status === 'OK' || response.data.status === 'DEGRADED';
+      const isHealthy = response.data.status === 'healthy' || response.data.status === 'OK' || response.data.status === 'DEGRADED';
       backendReady = isHealthy;
       
       console.log('Backend health check result:', isHealthy ? 'Healthy' : 'Unhealthy', `(status: ${response.data.status})`);

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { WorkoutPlan, Workout, Exercise, WorkoutExercise, workoutPlanUtils } from '../../types/workout'
 import { wgerService } from '../../services/wgerService'
-import LoadingOverlay from '../common/LoadingOverlay'
+import { InlineLoader } from '../common/LoadingOverlay'
 import ActionButton from '../common/ActionButton'
 
 interface WorkoutPlanCustomizerProps {
@@ -438,11 +438,9 @@ const WorkoutPlanCustomizer: React.FC<WorkoutPlanCustomizerProps> = ({
                   </div>
 
                   {isSearching ? (
-                    <LoadingOverlay
-                      isLoading={true}
-                      text="Searching exercises..."
-                      className="py-8"
-                    />
+                    <div className="py-8 flex justify-center">
+                      <InlineLoader message="Searching exercises..." />
+                    </div>
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {availableExercises && availableExercises.map(exercise => (

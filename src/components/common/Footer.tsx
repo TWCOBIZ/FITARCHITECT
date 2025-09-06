@@ -7,7 +7,7 @@ const Footer: React.FC = () => {
       <div className="container mx-auto px-4">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           <div>
-            <h3 className="text-lg font-semibold mb-4">FITARCHITECT</h3>
+            <h3 className="text-lg font-semibold mb-4">TWCOFIT</h3>
             <p className="text-gray-400">
               Your personal fitness and nutrition architect
             </p>
@@ -66,7 +66,7 @@ const Footer: React.FC = () => {
         </div>
         
         <div className="border-t border-gray-800 mt-8 pt-8 text-center text-gray-400">
-          <p>&copy; {new Date().getFullYear()} FITARCHITECT. All rights reserved.</p>
+          <p>&copy; {new Date().getFullYear()} TWCOFIT. All rights reserved.</p>
           <div className="mt-2">
             <Link to="/admin/login" className="text-xs text-blue-400 hover:underline">Admin Login</Link>
           </div>

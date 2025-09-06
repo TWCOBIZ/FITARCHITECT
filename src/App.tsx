@@ -203,7 +203,7 @@ const App: React.FC = () => {
                           </Routes>
                       </Suspense>
                     </Router>
-                    {/* Toast Notification System - FitArchitect Black/White Theme */}
+                    {/* Toast Notification System - TWCOFIT Black/White Theme */}
                     <Toaster
                       position="top-center"
                       reverseOrder={false}

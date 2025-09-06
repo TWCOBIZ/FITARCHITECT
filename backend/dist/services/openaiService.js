@@ -37,6 +37,45 @@ exports.openaiService = exports.OpenAIService = void 0;
 const openai_1 = require("openai");
 const retryUtils_1 = require("../utils/retryUtils");
 const logger_1 = require("../utils/logger");
+// Import exercise database at the top level
+let exerciseDatabase = [];
+try {
+    // Try multiple possible paths for exerciseDatabase
+    const paths = [
+        '../data/exerciseDatabase.js',
+        './data/exerciseDatabase.js',
+        '../data/exerciseDatabase',
+        './data/exerciseDatabase'
+    ];
+    for (const dbPath of paths) {
+        try {
+            const result = require(dbPath);
+            exerciseDatabase = result.exerciseDatabase || result.default || result;
+            if (Array.isArray(exerciseDatabase) && exerciseDatabase.length > 0) {
+                console.log(`✅ Loaded exerciseDatabase from ${dbPath}, ${exerciseDatabase.length} exercises`);
+                break;
+            }
+        }
+        catch (err) {
+            // Try next path
+        }
+    }
+    if (!Array.isArray(exerciseDatabase) || exerciseDatabase.length === 0) {
+        console.warn('⚠️ Could not load exerciseDatabase, using fallback exercises');
+        // Minimal fallback exercises
+        exerciseDatabase = [
+            { name: 'Push-Ups', category: 'push', equipment: ['bodyweight'], difficulty: 'beginner' },
+            { name: 'Squats', category: 'legs', equipment: ['bodyweight'], difficulty: 'beginner' },
+            { name: 'Lunges', category: 'legs', equipment: ['bodyweight'], difficulty: 'beginner' },
+            { name: 'Plank', category: 'core', equipment: ['bodyweight'], difficulty: 'beginner' },
+            { name: 'Mountain Climbers', category: 'cardio', equipment: ['bodyweight'], difficulty: 'beginner' }
+        ];
+    }
+}
+catch (error) {
+    console.error('❌ Failed to load exerciseDatabase:', error.message);
+    exerciseDatabase = [];
+}
 class ExerciseAPIFallbackManager {
     constructor() {
         this.services = [];
@@ -227,7 +266,6 @@ class LocalExerciseService {
     }
     async fetchExercises(profile) {
         // Use existing local exercise database
-        const { exerciseDatabase } = require('../data/exerciseDatabase');
         return exerciseDatabase.filter((ex) => {
             var _a;
             // Filter by user profile criteria
@@ -296,7 +334,7 @@ const OPENAI_CONFIG = {
         recommendation: 0.7,
         recipe: 0.8
     },
-    timeout: 30000, // 30 second timeout
+    timeout: 60000, // 60 second timeout for complex prompts
     maxRetries: 3,
     initialDelay: 2000,
     retryableErrorCodes: [429] // Rate limit errors
@@ -460,7 +498,16 @@ class OpenAIService {
             const systemPrompt = "You are a professional fitness trainer creating personalized workout plans. Output ONLY valid JSON that matches the exact structure requested. No additional text or formatting.";
             const content = await this.makeOpenAIRequest(systemPrompt, prompt, OPENAI_CONFIG.maxTokens.workout, OPENAI_CONFIG.temperature.workout);
             try {
-                const plan = JSON.parse(content);
+                // Clean the content - remove markdown code blocks if present
+                let cleanContent = content;
+                if (content.includes('```json')) {
+                    cleanContent = content.replace(/```json\n?/g, '').replace(/```\n?/g, '');
+                }
+                else if (content.includes('```')) {
+                    cleanContent = content.replace(/```\n?/g, '');
+                }
+                cleanContent = cleanContent.trim();
+                const plan = JSON.parse(cleanContent);
                 // Enhanced validation with recovery
                 if (!this.validateWorkoutPlanStructure(plan)) {
                     logger_1.logger.warn('Invalid workout plan structure from OpenAI, attempting recovery', {
@@ -601,7 +648,7 @@ class OpenAIService {
     createWorkoutGenerationPrompt(userProfile, exercises) {
         var _a, _b;
         const now = new Date().toISOString();
-        return `Generate a 3-week progressive workout plan as a JSON object with this EXACT structure:
+        return `Generate a 3-week workout plan as JSON:
 {
   "id": "generated-${Date.now()}",
   "name": "AI Generated Workout Plan",
@@ -653,10 +700,7 @@ User Requirements:
 
 Create a 3-week progressive program with ${userProfile.workoutDays || 3} workout days per week. Each week should have the same workout structure but with progressive overload.
 
-PROGRESSIVE OVERLOAD STRATEGY:
-- Week 1: Foundation (sets: 3, reps: 8-12, rest: 60-90s)
-- Week 2: Volume increase (sets: 3-4, reps: 10-15, rest: 60-75s) 
-- Week 3: Intensity increase (sets: 4, reps: 6-10, rest: 90-120s)
+Progressive: Week 1 (3 sets, 8-12 reps), Week 2 (3-4 sets, 10-15 reps), Week 3 (4 sets, 6-10 reps)
 
 For ${userProfile.fitnessGoal || 'general fitness'} goal:
 ${userProfile.fitnessGoal === 'strength' ? '- Focus on compound movements, 6-8 reps, heavier resistance\n- Include progressive overload each week\n- Longer rest periods (90-120s)' : ''}
@@ -668,39 +712,22 @@ ${(userProfile.workoutDays || 3) === 3 ? '- Day 1: Push (chest, shoulders, trice
 ${(userProfile.workoutDays || 3) === 4 ? '- Day 1: Upper Push (chest, shoulders, triceps)\n- Day 2: Lower Body (legs, glutes)\n- Day 3: Upper Pull (back, biceps)\n- Day 4: Full Body + Core' : ''}
 ${(userProfile.workoutDays || 3) === 5 ? '- Day 1: Push (chest, shoulders, triceps)\n- Day 2: Pull (back, biceps)\n- Day 3: Legs (quads, hamstrings)\n- Day 4: Upper Body (mix)\n- Day 5: Glutes & Core' : ''}
 
-STANDARDIZED 3-PHASE WORKOUT TEMPLATE:
-Each workout MUST follow this exact structure:
+Each workout: 2-3 warmup exercises (phase:"warmup"), 4-6 main exercises (phase:"main"), 2-3 cooldown (phase:"cooldown")
 
-PHASE 1 - MOBILITY WARM-UP (2-3 exercises):
-- Dynamic stretching and mobility exercises
-- Light activation movements (arm circles, leg swings, etc.)
-- Joint preparation exercises
-- Total time: 5-8 minutes
-- Sets: 1-2, Reps: 8-12, Rest: 30s
-- Mark each exercise with "phase": "warmup"
-
-PHASE 2 - ACTIVE MUSCLE ENGAGEMENT (4-6 exercises):
-- Main strength training exercises
-- Start with compound movements (squats, push-ups, pull-ups)
-- Follow with isolation exercises targeting specific muscles
-- Progressive intensity based on fitness goal
-- Total time: 25-35 minutes
-- Sets: 3-4, Reps: varies by goal, Rest: 60-90s
-- Mark each exercise with "phase": "main"
-
-PHASE 3 - COOLDOWN (2-3 exercises):
-- Static stretching for worked muscle groups
-- Core stability exercises
-- Recovery and flexibility movements
-- Total time: 5-10 minutes
-- Sets: 1-2, Reps: 10-15 (or hold time for stretches), Rest: 30s
-- Mark each exercise with "phase": "cooldown"
-
-TOTAL EXERCISES PER WORKOUT: 8-12 exercises (2-3 warmup + 4-6 main + 2-3 cooldown)
-EXERCISE DIFFICULTY: Match to user's experience level (${userProfile.experienceLevel})
+Total: 8-12 exercises per workout matching ${userProfile.experienceLevel} level
 
 Available Exercises (use these names EXACTLY as shown):
-${(exercises === null || exercises === void 0 ? void 0 : exercises.filter(e => e.name && e.name !== 'Unknown Exercise').map(e => `${e.name} - Targets: ${Array.isArray(e.muscleGroups) ? e.muscleGroups.join(', ') : 'general'} - Equipment: ${Array.isArray(e.equipment) ? e.equipment.join(', ') : 'bodyweight'}`).join('\n')) || 'Push-ups - Targets: chest, triceps, shoulders - Equipment: bodyweight\nSquats - Targets: legs, glutes - Equipment: bodyweight\nPlank - Targets: core - Equipment: bodyweight\nLunges - Targets: legs, glutes - Equipment: bodyweight'}
+${(() => {
+            const userEquipment = userProfile.equipment || ['bodyweight'];
+            const relevantExercises = exercises === null || exercises === void 0 ? void 0 : exercises.filter(e => {
+                if (!e.name || e.name === 'Unknown Exercise')
+                    return false;
+                // Include exercise if it requires no equipment or equipment user has
+                const exerciseEquipment = Array.isArray(e.equipment) ? e.equipment : ['bodyweight'];
+                return exerciseEquipment.some(eq => eq === 'bodyweight' || userEquipment.includes(eq));
+            }).slice(0, 20); // Limit to 20 most relevant exercises
+            return (relevantExercises === null || relevantExercises === void 0 ? void 0 : relevantExercises.map(e => `${e.name} - ${Array.isArray(e.muscleGroups) ? e.muscleGroups.join(', ') : 'general'}`).join('\n')) || 'Push-ups, Squats, Lunges, Plank, Mountain Climbers, Burpees';
+        })()}
 
 Return ONLY the JSON object, no additional text.`;
     }
@@ -905,7 +932,6 @@ Return ONLY the JSON object, no additional text.`;
     getFallbackWorkoutPlan() {
         const now = new Date().toISOString();
         // Use the comprehensive exercise database for fallback
-        const { exerciseDatabase } = require('../data/exerciseDatabase');
         // Select appropriate exercises from the database
         const pushUps = exerciseDatabase.find((ex) => ex.name === 'Push-Ups');
         const squats = exerciseDatabase.find((ex) => ex.name === 'Squats');
