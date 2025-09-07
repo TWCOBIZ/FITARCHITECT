@@ -2775,8 +2775,7 @@ app.post('/api/admin/import-wger-workouts', authenticate, requireAdmin, async (r
             'Authorization': `Token ${wgerApiKey}`,
             'User-Agent': 'FitArchitect/1.0',
             'Accept': 'application/json'
-          },
-          timeout: 10000
+          }
         });
         
         if (!response.ok) {
