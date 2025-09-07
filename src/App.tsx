@@ -9,7 +9,6 @@ import { AuthProvider } from './contexts/AuthContext'
 import { StripeProvider } from './contexts/StripeContext'
 import { NutritionProvider } from './contexts/NutritionContext'
 import { OpenAIProvider } from './contexts/OpenAIContext'
-import { WgerProvider } from './contexts/WgerContext'
 import { AudioProvider } from './components/workout/AudioController'
 import { ProtectedRoute } from './components/auth/ProtectedRoute'
 import { ParqForm } from './components/parq/ParqForm'
@@ -59,7 +58,6 @@ const App: React.FC = () => {
                 <AudioProvider>
                   <OpenAIProvider>
                     <NutritionProvider>
-                      <WgerProvider>
                         <ExerciseFallbackProvider>
                       <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
                         <Suspense fallback={
@@ -262,7 +260,6 @@ const App: React.FC = () => {
                       }}
                     />
                         </ExerciseFallbackProvider>
-                      </WgerProvider>
                     </NutritionProvider>
                   </OpenAIProvider>
                 </AudioProvider>

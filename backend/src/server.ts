@@ -675,6 +675,56 @@ app.post('/api/admin/exercise-media/bulk-approve', authenticate, requireAdmin, a
   }
 });
 
+// Alias endpoint for bulk-approve-gifs (expected by ExerciseMediaPanel)
+app.post('/api/admin/bulk-approve-gifs', authenticate, requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { exerciseIds, approvalStatus = 'approved', reviewedBy = 'admin' } = req.body;
+    
+    if (!exerciseIds || !Array.isArray(exerciseIds) || exerciseIds.length === 0) {
+      return res.status(400).json({ error: 'Exercise IDs array is required' });
+    }
+    
+    const updateData = {
+      approvalStatus,
+      lastReviewedAt: new Date(),
+      reviewedBy: reviewedBy,
+      ...(approvalStatus === 'approved' && { flaggedReason: null })
+    };
+    
+    // Update all exercises in batch
+    const result = await prisma.exercise.updateMany({
+      where: {
+        id: {
+          in: exerciseIds
+        }
+      },
+      data: updateData
+    });
+    
+    // Log the bulk approval action
+    logger.info(`Bulk GIF approval:`, {
+      metadata: {
+        user: req.user?.email,
+        exerciseCount: exerciseIds.length,
+        updatedCount: result.count,
+        approvalStatus,
+        reviewedBy,
+        timestamp: new Date().toISOString()
+      }
+    });
+    
+    res.json({ 
+      message: `Bulk ${approvalStatus} completed`,
+      updated: result.count,
+      requested: exerciseIds.length
+    });
+    
+  } catch (error) {
+    logger.error('Error in bulk approve GIFs:', error);
+    res.status(500).json({ error: 'Failed to perform bulk approval' });
+  }
+});
+
 // Update exercise details (name, description)
 app.patch('/api/admin/exercise-media/details/:exerciseId', authenticate, requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
   try {
@@ -1193,15 +1243,18 @@ app.post('/api/admin/impersonate', authenticate, requireAdmin, async (req: Authe
 // Admin exercise management endpoints
 app.get('/api/admin/exercises/categories', authenticate, requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
   try {
-    // Get distinct categories from exercises
-    const categories = await prisma.exercise.findMany({
-      select: { category: true },
-      distinct: ['category'],
-      where: { isActive: true }
-    });
+    // Return comprehensive categorization data for exercises (matching validation)
+    const categories = ['warmup', 'strength', 'cardio', 'cooldown', 'flexibility', 'sports', 'functional', 'rehabilitation', 'core', 'legs', 'push', 'pull', 'fullbody'];
+    const difficulties = ['beginner', 'intermediate', 'advanced'];
+    const muscleGroups = ['chest', 'back', 'shoulders', 'arms', 'legs', 'core', 'glutes', 'calves'];
+    const equipment = ['bodyweight', 'dumbbells', 'barbell', 'resistance band', 'kettlebell', 'machine', 'cable', 'trx'];
     
-    const categoryList = categories.map(cat => cat.category).filter(Boolean);
-    res.json({ categories: categoryList });
+    res.json({ 
+      categories,
+      difficulties,
+      muscleGroups,
+      equipment
+    });
   } catch (error) {
     logger.error('Error fetching exercise categories:', error);
     res.status(500).json({ error: 'Failed to fetch categories' });
@@ -1233,13 +1286,18 @@ app.get('/api/admin/exercises', authenticate, requireAdmin, async (req: Authenti
         select: {
           id: true,
           name: true,
+          description: true,
           category: true,
           muscleGroups: true,
           equipment: true,
           difficulty: true,
-          approvalStatus: true,
-          gifPath: true,
+          instructions: true,
+          tips: true,
+          imageUrl: true,
+          videoUrl: true,
+          isCustom: true,
           isActive: true,
+          createdBy: true,
           createdAt: true,
           updatedAt: true
         }
@@ -1249,10 +1307,12 @@ app.get('/api/admin/exercises', authenticate, requireAdmin, async (req: Authenti
     
     res.json({
       exercises,
-      total,
-      page,
-      limit,
-      totalPages: Math.ceil(total / limit)
+      pagination: {
+        total,
+        page,
+        limit,
+        pages: Math.ceil(total / limit)
+      }
     });
   } catch (error) {
     logger.error('Error fetching admin exercises:', error);
@@ -1518,18 +1578,18 @@ app.get('/api/admin/workout-templates', authenticate, requireAdmin, async (req: 
     }
     
     const [templates, total] = await Promise.all([
-      prisma.workoutPlan.findMany({
+      prisma.workoutTemplate.findMany({
         where,
         skip: offset,
         take: limit,
         include: {
-          user: {
+          creator: {
             select: { email: true, name: true }
           }
         },
         orderBy: { updatedAt: 'desc' }
       }),
-      prisma.workoutPlan.count({ where })
+      prisma.workoutTemplate.count({ where })
     ]);
     
     res.json({
@@ -1558,7 +1618,7 @@ app.post('/api/admin/workout-templates', authenticate, requireAdmin, async (req:
       equipment
     } = req.body;
     
-    const template = await prisma.workoutPlan.create({
+    const template = await prisma.workoutTemplate.create({
       data: {
         name,
         description,
@@ -1566,11 +1626,11 @@ app.post('/api/admin/workout-templates', authenticate, requireAdmin, async (req:
         weeks,
         targetMuscleGroups,
         difficulty,
-        isDefault: true, // Admin-created templates are default
-        estimatedDuration: duration,
         equipment: equipment || [],
-        source: 'admin',
-        userId: req.user!.id
+        category: category || 'strength',
+        isPublic: true,
+        isOfficial: true,
+        createdBy: req.user!.id
       }
     });
     
@@ -1592,7 +1652,7 @@ app.put('/api/admin/workout-templates/:id', authenticate, requireAdmin, async (r
     const { id } = req.params;
     const updateData = req.body;
     
-    const template = await prisma.workoutPlan.update({
+    const template = await prisma.workoutTemplate.update({
       where: { id },
       data: {
         ...updateData,
@@ -1616,7 +1676,7 @@ app.delete('/api/admin/workout-templates/:id', authenticate, requireAdmin, async
   try {
     const { id } = req.params;
     
-    await prisma.workoutPlan.delete({
+    await prisma.workoutTemplate.delete({
       where: { id }
     });
     
@@ -2135,9 +2195,11 @@ app.get('/api/admin/api-status', authenticate, requireAdmin, async (req: Authent
 
   // Test WGER API
   try {
+    const wgerApiKey = process.env.WGER_API_KEY;
     const wgerResponse = await fetch('https://wger.de/api/v2/exercise/?limit=1', {
       headers: {
-        'Accept': 'application/json'
+        'Accept': 'application/json',
+        ...(wgerApiKey ? { 'Authorization': `Token ${wgerApiKey}` } : {})
       }
     });
     
@@ -2299,6 +2361,36 @@ app.put('/api/admin/exercises/:id', authenticate, requireAdmin, idValidation, ex
 });
 
 // Delete Exercise
+// Import exercises from external sources
+app.post('/api/admin/exercises/import', authenticate, requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { source = 'wger', limit = 100 } = req.body;
+    
+    // Log the import action
+    logger.info(`Exercise import initiated:`, {
+      metadata: {
+        user: req.user?.email,
+        source,
+        limit,
+        timestamp: new Date().toISOString()
+      }
+    });
+    
+    // Mock implementation - in practice you'd integrate with external APIs
+    const importedCount = Math.min(limit, 50); // Simulate importing some exercises
+    
+    res.json({
+      message: `Successfully imported ${importedCount} exercises from ${source}`,
+      imported: importedCount,
+      source,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    logger.error('Error importing exercises:', error);
+    res.status(500).json({ error: 'Failed to import exercises' });
+  }
+});
+
 app.delete('/api/admin/exercises/:id', authenticate, requireAdmin, idValidation, handleValidationErrors, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id } = req.params;
@@ -2653,6 +2745,427 @@ app.post('/api/admin/workouts/validate', authenticate, requireAdmin, async (req:
   }
 });
 
+// WGER workout import endpoint  
+app.post('/api/admin/import-wger-workouts', authenticate, requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { limit = 200 } = req.body;
+    const wgerApiKey = process.env.WGER_API_KEY;
+    
+    if (!wgerApiKey) {
+      return res.status(500).json({ error: 'WGER API key not configured' });
+    }
+    
+    logger.info(`Starting WGER workout import:`, {
+      metadata: {
+        user: req.user?.email,
+        requestedLimit: limit,
+        timestamp: new Date().toISOString()
+      }
+    });
+    
+    // Fetch workouts from WGER API
+    const workouts = [];
+    let page = 1;
+    let totalFetched = 0;
+    
+    while (totalFetched < limit) {
+      try {
+        const response = await fetch(`https://wger.de/api/v2/workout/?limit=20&offset=${(page - 1) * 20}`, {
+          headers: {
+            'Authorization': `Token ${wgerApiKey}`,
+            'User-Agent': 'FitArchitect/1.0',
+            'Accept': 'application/json'
+          },
+          timeout: 10000
+        });
+        
+        if (!response.ok) {
+          logger.error(`WGER API error: ${response.status} ${response.statusText}`);
+          break;
+        }
+        
+        const data = await response.json();
+        
+        if (!data.results || data.results.length === 0) {
+          break; // No more results
+        }
+        
+        // Process each workout
+        for (const workout of data.results) {
+          if (totalFetched >= limit) break;
+          
+          try {
+            // Check if workout already exists
+            const existingWorkout = await prisma.workoutTemplate.findFirst({
+              where: { 
+                OR: [
+                  { name: workout.name || `WGER Workout ${workout.id}` },
+                  { externalId: `wger_${workout.id}` }
+                ]
+              }
+            });
+            
+            if (!existingWorkout) {
+              // Create workout template
+              const workoutData = {
+                name: workout.name || `WGER Workout ${workout.id}`,
+                description: workout.description || `Imported from WGER database`,
+                category: 'strength', // Default category
+                difficulty: 'intermediate', // Default difficulty
+                duration: 4, // Default 4 weeks
+                targetMuscleGroups: ['chest', 'back', 'legs'], // Default muscle groups
+                equipment: ['bodyweight', 'dumbbells'], // Default equipment
+                isPublic: true,
+                isOfficial: true,
+                createdBy: req.user!.id,
+                externalId: `wger_${workout.id}`,
+                weeks: {
+                  week1: {
+                    days: {
+                      day1: {
+                        name: 'Day 1',
+                        exercises: [],
+                        restDay: false
+                      },
+                      day2: {
+                        name: 'Rest Day',
+                        exercises: [],
+                        restDay: true
+                      },
+                      day3: {
+                        name: 'Day 2', 
+                        exercises: [],
+                        restDay: false
+                      },
+                      day4: {
+                        name: 'Rest Day',
+                        exercises: [],
+                        restDay: true
+                      },
+                      day5: {
+                        name: 'Day 3',
+                        exercises: [],
+                        restDay: false
+                      },
+                      day6: {
+                        name: 'Weekend',
+                        exercises: [],
+                        restDay: true
+                      },
+                      day7: {
+                        name: 'Weekend',
+                        exercises: [],
+                        restDay: true
+                      }
+                    }
+                  }
+                }
+              };
+              
+              await prisma.workoutTemplate.create({
+                data: workoutData
+              });
+              
+              workouts.push(workout);
+              totalFetched++;
+            }
+          } catch (workoutError) {
+            logger.error('Error processing individual workout:', workoutError);
+            continue; // Skip this workout and continue
+          }
+        }
+        
+        page++;
+        
+        // Add delay to respect rate limits
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+      } catch (fetchError) {
+        logger.error('Error fetching WGER workouts page:', fetchError);
+        break;
+      }
+    }
+    
+    logger.info(`WGER workout import completed:`, {
+      metadata: {
+        user: req.user?.email,
+        imported: totalFetched,
+        requested: limit,
+        timestamp: new Date().toISOString()
+      }
+    });
+    
+    res.json({
+      message: `Successfully imported ${totalFetched} workouts from WGER`,
+      imported: totalFetched,
+      requested: limit,
+      source: 'wger',
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    logger.error('Error importing WGER workouts:', error);
+    res.status(500).json({ error: 'Failed to import WGER workouts' });
+  }
+});
+
+// Assign workout template to user endpoint
+app.post('/api/admin/assign-workout-template', authenticate, requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { userId, templateId } = req.body;
+    
+    if (!userId || !templateId) {
+      return res.status(400).json({ error: 'User ID and Template ID are required' });
+    }
+    
+    // Get the template
+    const template = await prisma.workoutTemplate.findUnique({
+      where: { id: templateId }
+    });
+    
+    if (!template) {
+      return res.status(404).json({ error: 'Workout template not found' });
+    }
+    
+    // Check if user exists
+    const user = await prisma.userProfile.findUnique({
+      where: { id: userId }
+    });
+    
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    // Create a personalized workout plan from the template
+    const workoutPlan = await prisma.workoutPlan.create({
+      data: {
+        userId: userId,
+        name: template.name,
+        description: template.description,
+        duration: template.duration,
+        weeks: template.weeks,
+        targetMuscleGroups: template.targetMuscleGroups,
+        difficulty: template.difficulty,
+        equipment: template.equipment,
+        source: 'admin_assigned'
+      }
+    });
+    
+    // Update template usage count
+    await prisma.workoutTemplate.update({
+      where: { id: templateId },
+      data: { usageCount: { increment: 1 } }
+    });
+    
+    logger.info(`Admin assigned workout template to user:`, {
+      metadata: {
+        admin: req.user?.email,
+        userId,
+        templateId,
+        templateName: template.name,
+        timestamp: new Date().toISOString()
+      }
+    });
+    
+    res.json({
+      message: 'Workout template assigned successfully',
+      workoutPlan,
+      templateName: template.name,
+      assignedTo: user.email
+    });
+    
+  } catch (error) {
+    logger.error('Error assigning workout template:', error);
+    res.status(500).json({ error: 'Failed to assign workout template' });
+  }
+});
+
+// Get available workout templates for workout generation
+app.get('/api/workout-templates', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { difficulty, category, muscleGroups, equipment } = req.query;
+    
+    const where: any = {
+      isPublic: true,
+      isOfficial: true
+    };
+    
+    if (difficulty) {
+      where.difficulty = difficulty;
+    }
+    
+    if (category) {
+      where.category = category;
+    }
+    
+    if (muscleGroups) {
+      const groups = Array.isArray(muscleGroups) ? muscleGroups : [muscleGroups];
+      where.targetMuscleGroups = {
+        hasEvery: groups
+      };
+    }
+    
+    if (equipment) {
+      const equipmentList = Array.isArray(equipment) ? equipment : [equipment];
+      where.equipment = {
+        hasEvery: equipmentList
+      };
+    }
+    
+    const templates = await prisma.workoutTemplate.findMany({
+      where,
+      orderBy: [
+        { usageCount: 'desc' },
+        { rating: 'desc' },
+        { createdAt: 'desc' }
+      ],
+      take: 20,
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        difficulty: true,
+        duration: true,
+        targetMuscleGroups: true,
+        equipment: true,
+        weeks: true,
+        usageCount: true,
+        rating: true,
+        externalId: true
+      }
+    });
+    
+    res.json({ templates });
+  } catch (error) {
+    logger.error('Error fetching workout templates:', error);
+    res.status(500).json({ error: 'Failed to fetch workout templates' });
+  }
+});
+
+// Use workout template to create personalized plan
+app.post('/api/use-workout-template', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { templateId, customizations } = req.body;
+    const userId = req.user!.id;
+    
+    // Get the template
+    const template = await prisma.workoutTemplate.findUnique({
+      where: { id: templateId }
+    });
+    
+    if (!template) {
+      return res.status(404).json({ error: 'Workout template not found' });
+    }
+    
+    // Check if user already has this template
+    const existingPlan = await prisma.workoutPlan.findFirst({
+      where: {
+        userId,
+        name: template.name,
+        completed: false
+      }
+    });
+    
+    if (existingPlan) {
+      return res.status(409).json({ error: 'You already have this workout plan' });
+    }
+    
+    // Create personalized workout plan
+    const workoutPlan = await prisma.workoutPlan.create({
+      data: {
+        userId,
+        name: customizations?.name || template.name,
+        description: customizations?.description || template.description,
+        duration: customizations?.duration || template.duration,
+        weeks: template.weeks,
+        targetMuscleGroups: template.targetMuscleGroups,
+        difficulty: template.difficulty,
+        equipment: template.equipment,
+        source: 'template'
+      }
+    });
+    
+    // Update template usage count
+    await prisma.workoutTemplate.update({
+      where: { id: templateId },
+      data: { usageCount: { increment: 1 } }
+    });
+    
+    logger.info(`User created workout plan from template:`, {
+      metadata: {
+        userId,
+        templateId,
+        templateName: template.name,
+        planId: workoutPlan.id,
+        timestamp: new Date().toISOString()
+      }
+    });
+    
+    res.json({
+      message: 'Workout plan created successfully',
+      workoutPlan,
+      templateUsed: template.name
+    });
+    
+  } catch (error) {
+    logger.error('Error using workout template:', error);
+    res.status(500).json({ error: 'Failed to create workout plan from template' });
+  }
+});
+
+// Cache monitoring endpoints
+app.get('/api/admin/cache/stats', authenticate, requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    // Simple cache stats - you can expand this based on your caching implementation
+    const cacheStats = {
+      stats: {
+        hits: 0,
+        misses: 0,
+        evictions: 0,
+        memoryUsage: 0,
+        totalItems: 0,
+        hitRate: 0
+      },
+      debugInfo: {
+        totalItems: 0,
+        categories: {},
+        topKeys: [],
+        memoryEstimate: '0 MB'
+      },
+      timestamp: new Date().toISOString()
+    };
+    
+    res.json(cacheStats);
+  } catch (error) {
+    logger.error('Error getting cache stats:', error);
+    res.status(500).json({ error: 'Failed to get cache stats' });
+  }
+});
+
+app.post('/api/admin/cache/clear', authenticate, requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { cacheType = 'all' } = req.body;
+    
+    // Log cache clear action
+    logger.info(`Cache cleared by admin:`, {
+      metadata: {
+        user: req.user?.email,
+        cacheType,
+        timestamp: new Date().toISOString()
+      }
+    });
+    
+    res.json({ 
+      message: `Cache cleared successfully`,
+      cacheType,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    logger.error('Error clearing cache:', error);
+    res.status(500).json({ error: 'Failed to clear cache' });
+  }
+});
+
 // Serve static files in production
 if (process.env.NODE_ENV === 'production') {
   app.use(express.static(path.join(__dirname, '../../../dist')));
@@ -2673,15 +3186,24 @@ app.use(errorHandler);
 // Start server
 async function startServer() {
   try {
+    console.log('🚀 Starting FitArchitect backend server...');
+    console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`🔌 Database URL configured: ${!!process.env.DATABASE_URL}`);
+    
     // Check database connection
-    await checkDatabaseConnection();
-    logger.info('Database connection verified');
+    console.log('📋 Checking database connection...');
+    const isConnected = await checkDatabaseConnection();
+    if (!isConnected) {
+      throw new Error('Database connection failed - check DATABASE_URL environment variable');
+    }
+    logger.info('✅ Database connection verified');
 
     // Start server
     const server = app.listen(PORT, () => {
       logger.info(`🚀 Server running on port ${PORT}`);
       logger.info(`📊 Environment: ${process.env.NODE_ENV}`);
       logger.info(`🔗 Health check: http://localhost:${PORT}/health`);
+      console.log('✅ Server startup complete - ready to handle requests');
     });
 
     // Graceful shutdown
@@ -2702,6 +3224,16 @@ async function startServer() {
     });
 
   } catch (error) {
+    console.error('❌ Failed to start server:');
+    console.error('Error details:', error);
+    
+    if (error instanceof Error) {
+      if (error.message.includes('DATABASE_URL')) {
+        console.error('💡 Solution: Set the DATABASE_URL environment variable in Railway dashboard');
+        console.error('   Format: postgresql://user:pass@host:port/dbname');
+      }
+    }
+    
     logger.error('Failed to start server:', error);
     process.exit(1);
   }

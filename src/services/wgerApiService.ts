@@ -76,6 +76,7 @@ interface WgerEquipment {
 
 class WgerApiService {
   private baseUrl = 'https://wger.de/api/v2'
+  private apiKey = import.meta.env.VITE_WGER_API_KEY
   private exercisesCache = new Map<string, WgerExercise[]>()
   private categoriesCache: WgerCategory[] | null = null
   private musclesCache: WgerMuscle[] | null = null
@@ -87,6 +88,8 @@ class WgerApiService {
   constructor() {
     logger.workout.info('WGER API Service initialized', {
       baseUrl: this.baseUrl,
+      hasApiKey: !!this.apiKey,
+      apiKeyPrefix: this.apiKey ? `${this.apiKey.substring(0, 8)}...` : 'not configured',
       cacheExpiration: `${this.cacheExpiration / 1000 / 60} minutes`
     })
   }
@@ -149,6 +152,7 @@ class WgerApiService {
           timeout: 15000,
           headers: {
             'Accept': 'application/json',
+            'Authorization': this.apiKey ? `Token ${this.apiKey}` : undefined,
             'User-Agent': 'FitArchitect-ExerciseService'
           }
         })
@@ -201,6 +205,7 @@ class WgerApiService {
           timeout: 10000,
           headers: {
             'Accept': 'application/json',
+            'Authorization': this.apiKey ? `Token ${this.apiKey}` : undefined,
             'User-Agent': 'FitArchitect-ExerciseService'
           }
         })
@@ -239,6 +244,7 @@ class WgerApiService {
           timeout: 10000,
           headers: {
             'Accept': 'application/json',
+            'Authorization': this.apiKey ? `Token ${this.apiKey}` : undefined,
             'User-Agent': 'FitArchitect-ExerciseService'
           }
         })
@@ -275,6 +281,7 @@ class WgerApiService {
           timeout: 10000,
           headers: {
             'Accept': 'application/json',
+            'Authorization': this.apiKey ? `Token ${this.apiKey}` : undefined,
             'User-Agent': 'FitArchitect-ExerciseService'
           }
         })
@@ -311,6 +318,7 @@ class WgerApiService {
           timeout: 10000,
           headers: {
             'Accept': 'application/json',
+            'Authorization': this.apiKey ? `Token ${this.apiKey}` : undefined,
             'User-Agent': 'FitArchitect-ExerciseService'
           }
         })
@@ -432,6 +440,7 @@ class WgerApiService {
           timeout: 5000,
           headers: {
             'Accept': 'application/json',
+            'Authorization': this.apiKey ? `Token ${this.apiKey}` : undefined,
             'User-Agent': 'FitArchitect-ExerciseService'
           }
         })

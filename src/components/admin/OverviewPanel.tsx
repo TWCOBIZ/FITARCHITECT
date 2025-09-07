@@ -22,9 +22,16 @@ interface RecentActivity {
   user?: string
 }
 
+interface ApiStatus {
+  exerciseDb: string
+  wger: string
+  timestamp: string
+}
+
 const OverviewPanel: React.FC = () => {
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([])
+  const [apiStatus, setApiStatus] = useState<ApiStatus | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -36,13 +43,15 @@ const OverviewPanel: React.FC = () => {
 
   const fetchDashboardData = async () => {
     try {
-      const [statsResponse, activityResponse] = await Promise.all([
+      const [statsResponse, activityResponse, apiStatusResponse] = await Promise.all([
         api.get('/api/admin/dashboard/stats'),
-        api.get('/api/admin/dashboard/activity')
+        api.get('/api/admin/dashboard/activity'),
+        api.get('/api/admin/api-status')
       ])
       
       setStats(statsResponse.data)
       setRecentActivity(activityResponse.data)
+      setApiStatus(apiStatusResponse.data)
       setError(null)
     } catch (error) {
       console.error('Failed to fetch dashboard data:', error)
@@ -75,6 +84,20 @@ const OverviewPanel: React.FC = () => {
         return <FaExclamationTriangle className="text-red-400" />
       default:
         return <FaChartLine className="text-gray-400" />
+    }
+  }
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'working':
+        return 'bg-green-400'
+      case 'broken':
+      case 'no_key':
+        return 'bg-red-400'
+      case 'quota_exceeded':
+        return 'bg-yellow-400'
+      default:
+        return 'bg-gray-400'
     }
   }
 
@@ -259,7 +282,7 @@ const OverviewPanel: React.FC = () => {
               <span className="text-gray-300 text-xs">OpenAI</span>
             </div>
             <div className="flex items-center">
-              <div className="w-2 h-2 bg-yellow-400 rounded-full mr-2"></div>
+              <div className={`w-2 h-2 ${getStatusColor(apiStatus?.wger || 'broken')} rounded-full mr-2`}></div>
               <span className="text-gray-300 text-xs">WGER API</span>
             </div>
           </div>

@@ -1,13 +1,40 @@
 import { PrismaClient } from '@prisma/client';
 
+// Environment variable validation
+function validateDatabaseUrl(): string {
+  const databaseUrl = process.env.DATABASE_URL;
+  
+  if (!databaseUrl) {
+    const error = 'DATABASE_URL environment variable is required but not set';
+    console.error(error);
+    console.error('Available environment variables:', Object.keys(process.env).join(', '));
+    throw new Error(error);
+  }
+  
+  // Basic URL validation
+  try {
+    new URL(databaseUrl);
+  } catch (e) {
+    const error = `DATABASE_URL is not a valid URL: ${databaseUrl}`;
+    console.error(error);
+    throw new Error(error);
+  }
+  
+  return databaseUrl;
+}
+
 // Singleton pattern for Prisma client with connection pooling
 let prisma: PrismaClient;
 
+// Validate database URL before creating Prisma client
+const databaseUrl = validateDatabaseUrl();
+
 if (process.env.NODE_ENV === 'production') {
+  console.log('Initializing Prisma Client for production...');
   prisma = new PrismaClient({
     datasources: {
       db: {
-        url: process.env.DATABASE_URL,
+        url: databaseUrl,
       },
     },
     // Production optimizations
@@ -17,10 +44,11 @@ if (process.env.NODE_ENV === 'production') {
 } else {
   // Development settings
   if (!global.prisma) {
+    console.log('Initializing Prisma Client for development...');
     global.prisma = new PrismaClient({
       datasources: {
         db: {
-          url: process.env.DATABASE_URL,
+          url: databaseUrl,
         },
       },
       log: ['query', 'info', 'warn', 'error'],

@@ -249,7 +249,7 @@ const CustomExercisesPanel: React.FC = () => {
             className="px-3 py-2 bg-gray-700 text-white rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
           >
             <option value="all">All Categories</option>
-            {categories?.categories.map(cat => (
+            {categories?.categories?.map(cat => (
               <option key={cat} value={cat}>{cat.charAt(0).toUpperCase() + cat.slice(1)}</option>
             ))}
           </select>
@@ -260,7 +260,7 @@ const CustomExercisesPanel: React.FC = () => {
             className="px-3 py-2 bg-gray-700 text-white rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
           >
             <option value="all">All Difficulties</option>
-            {categories?.difficulties.map(diff => (
+            {categories?.difficulties?.map(diff => (
               <option key={diff} value={diff}>{diff.charAt(0).toUpperCase() + diff.slice(1)}</option>
             ))}
           </select>
@@ -271,7 +271,7 @@ const CustomExercisesPanel: React.FC = () => {
             className="px-3 py-2 bg-gray-700 text-white rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
           >
             <option value="all">All Muscle Groups</option>
-            {categories?.muscleGroups.map(mg => (
+            {categories?.muscleGroups?.map(mg => (
               <option key={mg} value={mg}>{mg.charAt(0).toUpperCase() + mg.slice(1)}</option>
             ))}
           </select>
@@ -284,7 +284,7 @@ const CustomExercisesPanel: React.FC = () => {
             className="px-3 py-2 bg-gray-700 text-white rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
           >
             <option value="all">All Equipment</option>
-            {categories?.equipment.map(eq => (
+            {categories?.equipment?.map(eq => (
               <option key={eq} value={eq}>{eq.charAt(0).toUpperCase() + eq.slice(1)}</option>
             ))}
           </select>

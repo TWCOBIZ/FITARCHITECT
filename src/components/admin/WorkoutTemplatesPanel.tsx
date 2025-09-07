@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { FaPlus, FaEdit, FaTrash, FaCopy, FaPlay, FaExclamationTriangle } from 'react-icons/fa'
+import { FaPlus, FaEdit, FaTrash, FaCopy, FaPlay, FaExclamationTriangle, FaDownload } from 'react-icons/fa'
 import { toast } from 'react-hot-toast'
 import { api } from '../../services/api'
 import ConfirmationModal from '../common/ConfirmationModal'
@@ -43,6 +43,7 @@ const WorkoutTemplatesPanel: React.FC = () => {
   const [editingTemplate, setEditingTemplate] = useState<WorkoutTemplate | null>(null)
   const [confirmModal, setConfirmModal] = useState<{isOpen: boolean, title: string, message: string, onConfirm: () => void} | null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
+  const [isImporting, setIsImporting] = useState(false)
 
   // Template form state
   const [templateForm, setTemplateForm] = useState({
@@ -255,6 +256,30 @@ const WorkoutTemplatesPanel: React.FC = () => {
     }
   }
 
+  const handleImportWgerWorkouts = async () => {
+    setConfirmModal({
+      isOpen: true,
+      title: 'Import WGER Workouts',
+      message: 'This will download and import up to 200 workout templates from the WGER database. This process may take several minutes. Continue?',
+      onConfirm: async () => {
+        setIsImporting(true)
+        try {
+          const loadingToast = toast.loading('Importing workouts from WGER...')
+          const response = await api.post('/api/admin/import-wger-workouts', { limit: 200 })
+          toast.dismiss(loadingToast)
+          toast.success(`Successfully imported ${response.data.imported} workouts from WGER`)
+          await fetchTemplates()
+        } catch (error: any) {
+          console.error('Failed to import WGER workouts:', error)
+          toast.error(error.response?.data?.error || 'Failed to import WGER workouts')
+        } finally {
+          setIsImporting(false)
+          setConfirmModal(null)
+        }
+      }
+    })
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -290,13 +315,23 @@ const WorkoutTemplatesPanel: React.FC = () => {
           <h1 className="text-2xl font-bold text-white mb-2">Workout Templates</h1>
           <p className="text-gray-400">Manage pre-built workout templates for users</p>
         </div>
-        <button
-          onClick={() => openTemplateModal()}
-          className="flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-white font-medium"
-        >
-          <FaPlus className="mr-2" />
-          Create Template
-        </button>
+        <div className="flex space-x-3">
+          <button
+            onClick={handleImportWgerWorkouts}
+            disabled={isImporting}
+            className="flex items-center px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-white font-medium"
+          >
+            <FaDownload className="mr-2" />
+            {isImporting ? 'Importing...' : 'Import from WGER'}
+          </button>
+          <button
+            onClick={() => openTemplateModal()}
+            className="flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-white font-medium"
+          >
+            <FaPlus className="mr-2" />
+            Create Template
+          </button>
+        </div>
       </div>
 
       {/* Filters */}

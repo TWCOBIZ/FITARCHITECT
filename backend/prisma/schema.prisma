@@ -351,6 +351,7 @@ model WorkoutTemplate {
   usageCount          Int      @default(0) // How many users have used this template
   rating              Float?   // Average user rating
   ratingCount         Int      @default(0)
+  externalId          String?  @unique // For tracking imported templates from external sources like WGER
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
   

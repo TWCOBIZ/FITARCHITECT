@@ -30,6 +30,54 @@ interface ExerciseFormProps {
   onCancel: () => void;
 }
 
+// Helper functions to display user-friendly labels
+const getCategoryLabel = (category: string): string => {
+  const labels: Record<string, string> = {
+    'warmup': 'Warm Up',
+    'strength': 'Strength',
+    'cardio': 'Cardio',
+    'cooldown': 'Cool Down',
+    'flexibility': 'Flexibility',
+    'sports': 'Sports',
+    'functional': 'Functional',
+    'rehabilitation': 'Rehabilitation',
+    'core': 'Core',
+    'legs': 'Legs',
+    'push': 'Push',
+    'pull': 'Pull',
+    'fullbody': 'Full Body'
+  };
+  return labels[category] || category.charAt(0).toUpperCase() + category.slice(1);
+};
+
+const getMuscleGroupLabel = (muscleGroup: string): string => {
+  const labels: Record<string, string> = {
+    'chest': 'Chest',
+    'back': 'Back', 
+    'shoulders': 'Shoulders',
+    'arms': 'Arms',
+    'legs': 'Legs',
+    'core': 'Core',
+    'glutes': 'Glutes',
+    'calves': 'Calves'
+  };
+  return labels[muscleGroup] || muscleGroup.charAt(0).toUpperCase() + muscleGroup.slice(1);
+};
+
+const getEquipmentLabel = (equipment: string): string => {
+  const labels: Record<string, string> = {
+    'bodyweight': 'Bodyweight',
+    'dumbbells': 'Dumbbells',
+    'barbell': 'Barbell',
+    'resistance band': 'Resistance Band',
+    'kettlebell': 'Kettlebell',
+    'machine': 'Machine',
+    'cable': 'Cable',
+    'trx': 'TRX'
+  };
+  return labels[equipment] || equipment.charAt(0).toUpperCase() + equipment.slice(1);
+};
+
 const ExerciseForm: React.FC<ExerciseFormProps> = ({
   exercise,
   categories,
@@ -251,7 +299,7 @@ const ExerciseForm: React.FC<ExerciseFormProps> = ({
                 <option value="">Select category</option>
                 {categories?.categories.map(cat => (
                   <option key={cat} value={cat}>
-                    {cat.charAt(0).toUpperCase() + cat.slice(1)}
+                    {getCategoryLabel(cat)}
                   </option>
                 ))}
               </select>
@@ -311,7 +359,7 @@ const ExerciseForm: React.FC<ExerciseFormProps> = ({
                     className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500"
                   />
                   <span className="text-sm text-gray-300">
-                    {mg.charAt(0).toUpperCase() + mg.slice(1)}
+                    {getMuscleGroupLabel(mg)}
                   </span>
                 </label>
               ))}
@@ -334,7 +382,7 @@ const ExerciseForm: React.FC<ExerciseFormProps> = ({
                     className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500"
                   />
                   <span className="text-sm text-gray-300">
-                    {eq.charAt(0).toUpperCase() + eq.slice(1)}
+                    {getEquipmentLabel(eq)}
                   </span>
                 </label>
               ))}
