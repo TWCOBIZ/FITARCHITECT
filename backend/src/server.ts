@@ -3192,16 +3192,65 @@ app.use(errorHandler);
 
 // Environment validation
 function validateEnvironment() {
-  const requiredVars = ['DATABASE_URL', 'JWT_SECRET'];
-  const missingVars = requiredVars.filter(varName => !process.env[varName]);
+  console.log('🔍 Checking environment variables...');
   
-  if (missingVars.length > 0) {
-    console.error('❌ Missing required environment variables:', missingVars.join(', '));
-    console.error('💡 Make sure these variables are set in Railway dashboard or .env file');
+  const requiredVars = {
+    'DATABASE_URL': 'PostgreSQL connection string (e.g., postgresql://user:pass@host:port/db)',
+    'JWT_SECRET': 'Secret key for JWT token signing',
+  };
+  
+  const optionalVars = {
+    'OPENAI_API_KEY': 'OpenAI API key for workout/meal generation',
+    'STRIPE_SECRET_KEY': 'Stripe secret key for payment processing',
+    'WGER_API_KEY': 'WGER API key for exercise database',
+    'TELEGRAM_BOT_TOKEN': 'Telegram bot token for notifications',
+  };
+  
+  const missingRequired: string[] = [];
+  const missingOptional: string[] = [];
+  
+  // Check required variables
+  Object.keys(requiredVars).forEach(varName => {
+    if (!process.env[varName]) {
+      missingRequired.push(varName);
+    }
+  });
+  
+  // Check optional variables
+  Object.keys(optionalVars).forEach(varName => {
+    if (!process.env[varName]) {
+      missingOptional.push(varName);
+    }
+  });
+  
+  // Log current environment
+  console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`🔌 Port: ${process.env.PORT || 3001}`);
+  
+  // Report missing variables
+  if (missingRequired.length > 0) {
+    console.error('\n❌ CRITICAL: Missing REQUIRED environment variables:');
+    missingRequired.forEach(varName => {
+      console.error(`   - ${varName}: ${requiredVars[varName as keyof typeof requiredVars]}`);
+    });
+    console.error('\n💡 To fix this in Railway:');
+    console.error('   1. Go to your Railway dashboard');
+    console.error('   2. Click on your service');
+    console.error('   3. Go to the "Variables" tab');
+    console.error('   4. Add the missing variables listed above');
+    console.error('\n🔗 Railway Dashboard: https://railway.app/dashboard\n');
     return false;
   }
   
-  console.log('✅ Required environment variables validated');
+  if (missingOptional.length > 0) {
+    console.warn('\n⚠️  Warning: Missing optional environment variables:');
+    missingOptional.forEach(varName => {
+      console.warn(`   - ${varName}: ${optionalVars[varName as keyof typeof optionalVars]}`);
+    });
+    console.warn('   Some features may not work without these variables.\n');
+  }
+  
+  console.log('✅ All required environment variables are set');
   return true;
 }
 

@@ -26,44 +26,54 @@ function validateDatabaseUrl(): string {
 // Singleton pattern for Prisma client with connection pooling
 let prisma: PrismaClient;
 
-// Validate database URL before creating Prisma client
-const databaseUrl = validateDatabaseUrl();
-
-if (process.env.NODE_ENV === 'production') {
-  console.log('Initializing Prisma Client for production...');
-  prisma = new PrismaClient({
-    datasources: {
-      db: {
-        url: databaseUrl,
-      },
-    },
-    // Production optimizations
-    log: ['error', 'warn'],
-    errorFormat: 'minimal',
-  });
-} else {
-  // Development settings
-  if (!global.prisma) {
-    console.log('Initializing Prisma Client for development...');
-    global.prisma = new PrismaClient({
+// Lazy initialization - only validate and create client when needed
+function initializePrismaClient() {
+  if (prisma) return prisma;
+  
+  const databaseUrl = validateDatabaseUrl();
+  
+  if (process.env.NODE_ENV === 'production') {
+    console.log('Initializing Prisma Client for production...');
+    prisma = new PrismaClient({
       datasources: {
         db: {
           url: databaseUrl,
         },
       },
-      log: ['query', 'info', 'warn', 'error'],
-      errorFormat: 'pretty',
+      // Production optimizations
+      log: ['error', 'warn'],
+      errorFormat: 'minimal',
     });
+  } else {
+    // Development settings
+    if (!global.prisma) {
+      console.log('Initializing Prisma Client for development...');
+      global.prisma = new PrismaClient({
+        datasources: {
+          db: {
+            url: databaseUrl,
+          },
+        },
+        log: ['query', 'info', 'warn', 'error'],
+        errorFormat: 'pretty',
+      });
+    }
+    prisma = global.prisma;
   }
-  prisma = global.prisma;
+  
+  return prisma;
 }
+
+// Don't initialize immediately - wait for first use
 
 // Add connection pool configuration via DATABASE_URL parameters
 // Example: postgresql://user:password@host:port/database?connection_limit=20&pool_timeout=30
 
 // Graceful shutdown
 process.on('beforeExit', async () => {
-  await prisma.$disconnect();
+  if (prisma) {
+    await prisma.$disconnect();
+  }
 });
 
 // Handle connection errors (commented out for compatibility)
@@ -71,8 +81,33 @@ process.on('beforeExit', async () => {
 //   console.error('Prisma Client Error:', e);
 // });
 
-// Export singleton instance
-export { prisma };
+// Export getter that initializes on first use
+export function getPrismaClient() {
+  if (!prisma) {
+    initializePrismaClient();
+  }
+  return prisma;
+}
+
+// Create a proxy object that delays initialization until first access
+const prismaProxy = new Proxy({} as PrismaClient, {
+  get(target, prop) {
+    if (!prisma) {
+      initializePrismaClient();
+    }
+    return prisma[prop as keyof PrismaClient];
+  },
+  set(target, prop, value) {
+    if (!prisma) {
+      initializePrismaClient();
+    }
+    (prisma as any)[prop] = value;
+    return true;
+  }
+});
+
+// Export proxy for backward compatibility
+export { prismaProxy as prisma };
 
 // Type augmentation for global
 declare global {
@@ -82,7 +117,8 @@ declare global {
 // Connection health check
 export async function checkDatabaseConnection(): Promise<boolean> {
   try {
-    await prisma.$queryRaw`SELECT 1`;
+    const client = getPrismaClient();
+    await client.$queryRaw`SELECT 1`;
     return true;
   } catch (error) {
     console.error('Database connection check failed:', error);
