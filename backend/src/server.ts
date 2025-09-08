@@ -1,7 +1,15 @@
 import * as dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
-dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+
+// Configure environment variables for both development and production
+const envPath = path.resolve(__dirname, '../../.env');
+if (fs.existsSync(envPath)) {
+  dotenv.config({ path: envPath });
+} else {
+  // Production fallback - Railway injects environment variables directly
+  dotenv.config();
+}
 
 import express, { Response } from 'express';
 import cors from 'cors';
@@ -3182,12 +3190,32 @@ app.use(notFoundHandler);
 app.use(errorLoggingMiddleware);
 app.use(errorHandler);
 
+// Environment validation
+function validateEnvironment() {
+  const requiredVars = ['DATABASE_URL', 'JWT_SECRET'];
+  const missingVars = requiredVars.filter(varName => !process.env[varName]);
+  
+  if (missingVars.length > 0) {
+    console.error('❌ Missing required environment variables:', missingVars.join(', '));
+    console.error('💡 Make sure these variables are set in Railway dashboard or .env file');
+    return false;
+  }
+  
+  console.log('✅ Required environment variables validated');
+  return true;
+}
+
 // Start server
 async function startServer() {
   try {
     console.log('🚀 Starting FitArchitect backend server...');
     console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
     console.log(`🔌 Database URL configured: ${!!process.env.DATABASE_URL}`);
+    
+    // Validate environment variables
+    if (!validateEnvironment()) {
+      process.exit(1);
+    }
     
     // Check database connection
     console.log('📋 Checking database connection...');
