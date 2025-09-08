@@ -2859,11 +2859,11 @@ app.post('/api/admin/cache/clear', auth_1.authenticate, auth_1.requireAdmin, asy
 });
 // Serve static files in production
 if (process.env.NODE_ENV === 'production') {
-    app.use(express_1.default.static(path_1.default.join(__dirname, '../../../dist')));
+    app.use(express_1.default.static(path_1.default.join(__dirname, '../../dist')));
     // Serve frontend for all non-API routes
     app.get('*', (req, res) => {
         if (!req.path.startsWith('/api')) {
-            res.sendFile(path_1.default.join(__dirname, '../../../dist/index.html'));
+            res.sendFile(path_1.default.join(__dirname, '../../dist/index.html'));
         }
     });
 }
